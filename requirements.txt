@@ -1,0 +1,5 @@
+SpeechRecognition
+rapidfuzz
+edge-tts
+playsound==1.2.2
+customtkinter
