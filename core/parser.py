@@ -1,14 +1,26 @@
-# core/parser.py
-from dataclasses import dataclass
+"""Command parser with risk-aware intent validation profiles."""
+
+from typing import Any
+
 from rapidfuzz import fuzz
 
-MATCH_THRESHOLD = 70  
+from core.command_models import CommandCatalogEntry, ParsedCommandIntent
+from core.text_integrity import contains_arabic_mojibake, contains_unexpected_unicode, normalize_nfc
 
-@dataclass
-class CommandMatch:
-    key: str
-    keyword: str
-    score: float
+
+def _normalize_input_text(text: str) -> str:
+    return normalize_nfc(str(text or "")).strip().lower()
+
+
+def _encoding_failure_reason(text: str) -> str | None:
+    candidate = str(text or "")
+    if contains_unexpected_unicode(candidate):
+        return "unexpected_unicode"
+    if contains_arabic_mojibake(candidate):
+        return "encoding_corruption"
+    if normalize_nfc(candidate) != candidate:
+        return "not_normalized"
+    return None
 
 
 COMMAND_KEYWORDS = {
@@ -812,21 +824,343 @@ COMMAND_KEYWORDS = {
 }
 
 
+CAPABILITY_INTENTS = {
+    "enable_obstacle_detection",
+    "disable_obstacle_detection",
+    "recognize_face",
+    "recognize_emotion",
+    "enable_money_detection",
+    "disable_money_detection",
+    "enable_OCR",
+    "disable_OCR",
+}
 
-def parse_command(text):
-    text_lower = text.lower()
-    best_match = None
-    highest_score = 0
-    matched_keyword = ""
+SETTINGS_INTENTS = {
+    "set_language_ar",
+    "set_language_en",
+    "set_language",
+    "set_voice_gender_male",
+    "set_voice_gender_female",
+    "set_voice_gender",
+    "speech_speed_increase",
+    "speech_speed_decrease",
+    "speech_speed_normal",
+    "set_speech_speed",
+}
 
-    for command, keywords in COMMAND_KEYWORDS.items():
-        for keyword in keywords:
-            score = fuzz.ratio(keyword.lower(), text_lower)
-            if score > highest_score:
-                highest_score = score
-                best_match = command
-                matched_keyword = keyword
+PROTECTED_SYSTEM_INTENTS = {"stop_system", "reset_settings"}
+ELEVATED_SYSTEM_INTENTS = {"start_system", "get_system_status"}
+SYSTEM_INTENTS = PROTECTED_SYSTEM_INTENTS | ELEVATED_SYSTEM_INTENTS
 
-    if highest_score >= MATCH_THRESHOLD and best_match:
-        return CommandMatch(key=best_match, keyword=matched_keyword, score=highest_score)
-    return None
+PARAMETER_REQUIRED_INTENTS = {"set_language", "set_voice_gender"}
+
+RISK_PROFILES = {
+    "normal": {"threshold": 70.0, "ambiguity_margin": 3.0},
+    "elevated": {"threshold": 83.0, "ambiguity_margin": 5.0},
+    "protected": {"threshold": 90.0, "ambiguity_margin": 7.0},
+}
+
+
+def _intent_category(intent_id: str) -> str:
+    if intent_id in CAPABILITY_INTENTS:
+        return "capability"
+    if intent_id in SETTINGS_INTENTS:
+        return "settings"
+    if intent_id in SYSTEM_INTENTS:
+        return "system"
+    return "capability"
+
+
+def _intent_risk(intent_id: str) -> str:
+    if intent_id in PROTECTED_SYSTEM_INTENTS:
+        return "protected"
+    if intent_id in ELEVATED_SYSTEM_INTENTS:
+        return "elevated"
+    return "normal"
+
+
+def _route_target_for_category(category: str) -> str:
+    if category == "settings":
+        return "settings_manager"
+    return "controller"
+
+
+def _intent_family(intent_id: str) -> str:
+    normalized = str(intent_id or "").strip().lower()
+    if normalized.startswith("set_language_"):
+        return "set_language"
+    if normalized.startswith("set_voice_gender_"):
+        return "set_voice_gender"
+    return normalized
+
+
+def _normalized_keywords(keywords: list[str]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in keywords:
+        value = _normalize_input_text(raw)
+        if not value:
+            continue
+        if contains_unexpected_unicode(value) or contains_arabic_mojibake(value):
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return tuple(normalized)
+
+
+def _build_command_catalog() -> dict[str, CommandCatalogEntry]:
+    catalog: dict[str, CommandCatalogEntry] = {}
+    for intent_id, keywords in COMMAND_KEYWORDS.items():
+        risk_level = _intent_risk(intent_id)
+        category = _intent_category(intent_id)
+        profile = RISK_PROFILES[risk_level]
+        is_follow_up_source = intent_id == "recognize_face"
+        catalog[intent_id] = CommandCatalogEntry(
+            intent_id=intent_id,
+            category=category,
+            risk_level=risk_level,
+            keywords=_normalized_keywords(keywords),
+            base_threshold=float(profile["threshold"]),
+            ambiguity_margin=float(profile["ambiguity_margin"]),
+            requires_parameters=intent_id in PARAMETER_REQUIRED_INTENTS,
+            requires_confirmation=intent_id in PROTECTED_SYSTEM_INTENTS,
+            follow_up_source=is_follow_up_source,
+            follow_up_target="recognize_emotion" if is_follow_up_source else None,
+            route_target=_route_target_for_category(category),
+        )
+    return catalog
+
+
+COMMAND_CATALOG = _build_command_catalog()
+
+
+def _score_intents(normalized_text: str) -> list[tuple[str, float, str]]:
+    scored: list[tuple[str, float, str]] = []
+    if not normalized_text:
+        return scored
+    normalized_tokens = {token for token in normalized_text.split() if token}
+    for intent_id, entry in COMMAND_CATALOG.items():
+        best_score = 0.0
+        best_keyword = ""
+        for keyword in entry.keywords:
+            keyword_value = keyword.lower()
+            ratio_score = float(fuzz.ratio(keyword_value, normalized_text))
+            partial_score = float(fuzz.partial_ratio(keyword_value, normalized_text))
+            token_set_score = float(fuzz.token_set_ratio(keyword_value, normalized_text))
+            token_sort_score = float(fuzz.token_sort_ratio(keyword_value, normalized_text))
+
+            keyword_tokens = {token for token in keyword_value.split() if token}
+            overlap_ratio = (
+                len(keyword_tokens & normalized_tokens) / len(keyword_tokens)
+                if keyword_tokens
+                else 0.0
+            )
+            composite_score = max(
+                ratio_score,
+                (0.55 * partial_score) + (0.45 * token_set_score),
+                (0.65 * token_set_score) + (0.35 * token_sort_score),
+            )
+            if overlap_ratio >= 0.95:
+                composite_score += 7.0
+            elif overlap_ratio >= 0.75:
+                composite_score += 4.0
+            elif overlap_ratio <= 0.25:
+                composite_score -= 5.0
+
+            extra_token_count = max(0, len(normalized_tokens) - len(keyword_tokens))
+            if extra_token_count >= 5 and overlap_ratio < 0.6:
+                composite_score -= 6.0
+
+            score = max(0.0, min(100.0, composite_score))
+            if score > best_score:
+                best_score = score
+                best_keyword = keyword
+        if best_keyword:
+            scored.append((intent_id, best_score, best_keyword))
+    scored.sort(key=lambda item: item[1], reverse=True)
+    return scored
+
+
+def _rejected_parse(
+    *,
+    raw_text: str,
+    normalized_text: str,
+    intent_id: str | None,
+    category: str | None,
+    risk_level: str | None,
+    matched_keyword: str | None,
+    score: float,
+    threshold: float,
+    runner_up_intent: str | None,
+    runner_up_score: float | None,
+    reason: str,
+    extra_metadata: dict[str, Any] | None = None,
+) -> ParsedCommandIntent:
+    metadata = dict(extra_metadata or {})
+    metadata.setdefault("normalized_text", normalized_text)
+    return ParsedCommandIntent(
+        raw_text=raw_text,
+        normalized_text=normalized_text,
+        intent_id=intent_id,
+        category=category,
+        risk_level=risk_level,
+        matched_keyword=matched_keyword,
+        score=score,
+        threshold=threshold,
+        runner_up_intent=runner_up_intent,
+        runner_up_score=runner_up_score,
+        accepted=False,
+        rejection_reason=reason,
+        metadata=metadata,
+    )
+
+
+def parse_command(
+    text: str,
+    *,
+    canonical_command_text: str | None = None,
+    recognition_metadata: dict[str, Any] | None = None,
+) -> ParsedCommandIntent:
+    raw_text = str(text or "")
+    parser_input_raw = canonical_command_text if canonical_command_text is not None else raw_text
+    encoding_failure = _encoding_failure_reason(parser_input_raw)
+    parser_input_text = normalize_nfc(parser_input_raw)
+    raw_text = normalize_nfc(raw_text)
+    normalized_text = _normalize_input_text(parser_input_text)
+    metadata: dict[str, Any] = {
+        "normalized_text": normalized_text,
+        "canonical_command_text": parser_input_text.strip() or normalized_text,
+    }
+    if recognition_metadata:
+        metadata["recognition"] = dict(recognition_metadata)
+
+    if encoding_failure is not None:
+        return _rejected_parse(
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            intent_id=None,
+            category=None,
+            risk_level=None,
+            matched_keyword=None,
+            score=0.0,
+            threshold=float(RISK_PROFILES["normal"]["threshold"]),
+            runner_up_intent=None,
+            runner_up_score=None,
+            reason=encoding_failure,
+            extra_metadata=metadata,
+        )
+
+    if not normalized_text:
+        return _rejected_parse(
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            intent_id=None,
+            category=None,
+            risk_level=None,
+            matched_keyword=None,
+            score=0.0,
+            threshold=float(RISK_PROFILES["normal"]["threshold"]),
+            runner_up_intent=None,
+            runner_up_score=None,
+            reason="below_threshold",
+            extra_metadata=metadata,
+        )
+
+    scored = _score_intents(normalized_text)
+    if not scored:
+        return _rejected_parse(
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            intent_id=None,
+            category=None,
+            risk_level=None,
+            matched_keyword=None,
+            score=0.0,
+            threshold=float(RISK_PROFILES["normal"]["threshold"]),
+            runner_up_intent=None,
+            runner_up_score=None,
+            reason="below_threshold",
+            extra_metadata=metadata,
+        )
+
+    best_intent, best_score, best_keyword = scored[0]
+    runner_up_intent = scored[1][0] if len(scored) > 1 else None
+    runner_up_score = scored[1][1] if len(scored) > 1 else None
+    entry = COMMAND_CATALOG[best_intent]
+    threshold = float(entry.base_threshold)
+
+    if best_score < threshold:
+        return _rejected_parse(
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            intent_id=best_intent,
+            category=entry.category,
+            risk_level=entry.risk_level,
+            matched_keyword=best_keyword,
+            score=best_score,
+            threshold=threshold,
+            runner_up_intent=runner_up_intent,
+            runner_up_score=runner_up_score,
+            reason="below_threshold",
+            extra_metadata=metadata,
+        )
+
+    if runner_up_intent is not None and runner_up_score is not None:
+        if (best_score - runner_up_score) < float(entry.ambiguity_margin):
+            best_family = _intent_family(best_intent)
+            runner_family = _intent_family(runner_up_intent)
+            if (
+                best_family == runner_family
+                and best_family in PARAMETER_REQUIRED_INTENTS
+                and best_family in COMMAND_CATALOG
+            ):
+                family_entry = COMMAND_CATALOG[best_family]
+                metadata["intent_family"] = best_family
+                metadata["ambiguous_variants"] = [best_intent, runner_up_intent]
+                return ParsedCommandIntent(
+                    raw_text=raw_text,
+                    normalized_text=normalized_text,
+                    intent_id=best_family,
+                    category=family_entry.category,
+                    risk_level=family_entry.risk_level,
+                    matched_keyword=best_keyword,
+                    score=best_score,
+                    threshold=float(family_entry.base_threshold),
+                    runner_up_intent=runner_up_intent,
+                    runner_up_score=runner_up_score,
+                    accepted=True,
+                    rejection_reason=None,
+                    metadata=metadata,
+                )
+            return _rejected_parse(
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                intent_id=best_intent,
+                category=entry.category,
+                risk_level=entry.risk_level,
+                matched_keyword=best_keyword,
+                score=best_score,
+                threshold=threshold,
+                runner_up_intent=runner_up_intent,
+                runner_up_score=runner_up_score,
+                reason="ambiguous",
+                extra_metadata=metadata,
+            )
+
+    return ParsedCommandIntent(
+        raw_text=raw_text,
+        normalized_text=normalized_text,
+        intent_id=best_intent,
+        category=entry.category,
+        risk_level=entry.risk_level,
+        matched_keyword=best_keyword,
+        score=best_score,
+        threshold=threshold,
+        runner_up_intent=runner_up_intent,
+        runner_up_score=runner_up_score,
+        accepted=True,
+        rejection_reason=None,
+        metadata=metadata,
+    )

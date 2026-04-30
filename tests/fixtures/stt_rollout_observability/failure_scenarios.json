@@ -1,0 +1,28 @@
+[
+  {
+    "scenario_id": "scenario-network-001",
+    "failure_category": "network",
+    "source": "google_cloud",
+    "rollout_mode": "commands_low_risk",
+    "bounded_outcome": "fallback",
+    "crash_free": true,
+    "diagnostic_reason_code": "cloud_network_timeout",
+    "field_safe_metadata": {
+      "raw_audio_present": false,
+      "raw_utterance_present": false
+    }
+  },
+  {
+    "scenario_id": "scenario-fallback-missing-001",
+    "failure_category": "fallback_missing",
+    "source": "strict_vosk",
+    "rollout_mode": "commands_low_risk",
+    "bounded_outcome": "safe_refusal",
+    "crash_free": true,
+    "diagnostic_reason_code": "strict_vosk_unavailable",
+    "field_safe_metadata": {
+      "raw_audio_present": false,
+      "raw_utterance_present": false
+    }
+  }
+]

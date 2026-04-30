@@ -1,0 +1,50 @@
+[
+  {
+    "rollup_id": "stt-rollup-001",
+    "candidate_run_id": "run-20260428-001",
+    "session_count": 4,
+    "event_count": 12,
+    "rollout_mode_counts": {
+      "shadow": 6,
+      "commands_low_risk": 6
+    },
+    "source_counts": {
+      "google_cloud": 7,
+      "strict_vosk": 3,
+      "rescue": 2
+    },
+    "status_counts": {
+      "succeeded": 7,
+      "failed": 3,
+      "recovered": 2
+    },
+    "confidence_bucket_counts": {
+      "high": 4,
+      "medium": 2,
+      "low": 1,
+      "missing": 5
+    },
+    "failure_category_counts": {
+      "cloud_timeout": 2,
+      "language_mismatch": 1
+    },
+    "recovery_outcome_counts": {
+      "fallback": 2,
+      "retry": 1
+    },
+    "latency_bucket_counts": {
+      "within_target": 8,
+      "threshold_breach": 1,
+      "over_baseline": 3
+    },
+    "fallback_frequency": 0.25,
+    "cloud_failure_frequency": 0.25,
+    "retry_rate": 0.08,
+    "clipping_rate": 0.0,
+    "timeout_rate": 0.16,
+    "arabic_failure_count": 1,
+    "language_mismatch_rate": 0.08,
+    "field_safe": true,
+    "retention_days": 180
+  }
+]

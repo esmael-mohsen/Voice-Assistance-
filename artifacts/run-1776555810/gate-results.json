@@ -1,0 +1,11 @@
+[
+  {
+    "duration_ms": 0,
+    "evidence_ref": null,
+    "failure_code": "checklist_incomplete",
+    "gate_name": "checklist_validation",
+    "is_blocking": true,
+    "status": "failed",
+    "summary": "Checklist has failed items: offline_behavior, emergency_control, audio_permission, crash_recovery"
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "candidate_run_id": "run-20260428-001",
+  "telemetry_events_artifact": "artifacts/run-20260428-001/stt-events.json",
+  "telemetry_rollup_artifact": "artifacts/run-20260428-001/stt-rollup.json",
+  "failure_scenarios_artifact": "artifacts/run-20260428-001/stt-failure-scenarios.json",
+  "release_gate_artifact": "artifacts/run-20260428-001/stt-release-gate.json",
+  "pi4_snapshot_artifact": "artifacts/run-20260428-001/pi4-stt-qualification.json",
+  "pocketsphinx_decommission_artifact": "artifacts/run-20260428-001/pocketsphinx-decommission.json",
+  "field_safe": true
+}

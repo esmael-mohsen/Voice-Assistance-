@@ -1,0 +1,42 @@
+[
+  {
+    "available": true,
+    "checksum": "sha256:22c969a213eda46399d4d853f7ab30cdc3698e86274961827e6eaab14c078157",
+    "kind": "test_results",
+    "notes": null,
+    "path": "artifacts\\run-1776786026\\gate-results.json",
+    "source": "generated"
+  },
+  {
+    "available": true,
+    "checksum": "sha256:508bb52fbafa335b24c89ecf65bd4cbe9948ee21cfb37967bcf5009e8aca372d",
+    "kind": "gate_summary",
+    "notes": null,
+    "path": "artifacts\\run-1776786026\\summary.json",
+    "source": "generated"
+  },
+  {
+    "available": true,
+    "checksum": "sha256:009263285d3a851885fb7399d78934e7ab1f0b2e99b41175961345112930615f",
+    "kind": "checklist_evidence",
+    "notes": null,
+    "path": "artifacts\\run-1776786026\\checklist.json",
+    "source": "generated"
+  },
+  {
+    "available": true,
+    "checksum": "sha256:d734692617f079fed7488a6dc945efb31681a5993229484e944cf98551b2a30e",
+    "kind": "baseline_comparison",
+    "notes": null,
+    "path": "artifacts\\run-1776786026\\baseline_comparison.json",
+    "source": "generated"
+  },
+  {
+    "available": true,
+    "checksum": "sha256:6cecb20c79fa62eb775e45270a3cb9f2ca33c6a540c960ca88bb7a1d3700dcb5",
+    "kind": "localization_results",
+    "notes": null,
+    "path": "artifacts\\run-1776786026\\localization_results.json",
+    "source": "generated"
+  }
+]

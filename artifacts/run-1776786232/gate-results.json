@@ -1,0 +1,56 @@
+[
+  {
+    "duration_ms": 211,
+    "evidence_ref": null,
+    "failure_code": null,
+    "gate_name": "compile",
+    "is_blocking": true,
+    "status": "passed",
+    "summary": "compile succeeded."
+  },
+  {
+    "duration_ms": 2919,
+    "evidence_ref": null,
+    "failure_code": null,
+    "gate_name": "unit_tests",
+    "is_blocking": true,
+    "status": "passed",
+    "summary": "unit_tests succeeded."
+  },
+  {
+    "duration_ms": 3203,
+    "evidence_ref": null,
+    "failure_code": null,
+    "gate_name": "integration_tests",
+    "is_blocking": true,
+    "status": "passed",
+    "summary": "integration_tests succeeded."
+  },
+  {
+    "duration_ms": 2901,
+    "evidence_ref": null,
+    "failure_code": null,
+    "gate_name": "smoke_tests",
+    "is_blocking": true,
+    "status": "passed",
+    "summary": "smoke_tests succeeded."
+  },
+  {
+    "duration_ms": 184,
+    "evidence_ref": null,
+    "failure_code": null,
+    "gate_name": "lint",
+    "is_blocking": true,
+    "status": "passed",
+    "summary": "lint succeeded."
+  },
+  {
+    "duration_ms": 0,
+    "evidence_ref": null,
+    "failure_code": "checklist_incomplete",
+    "gate_name": "checklist_validation",
+    "is_blocking": true,
+    "status": "failed",
+    "summary": "Checklist has failed items: offline_behavior, emergency_control, audio_permission, crash_recovery"
+  }
+]

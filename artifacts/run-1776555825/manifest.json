@@ -1,0 +1,35 @@
+{
+  "artifact_entries": [
+    {
+      "checksum": "sha256:345b69f2ce7323cf61db6ba7df96f4cc4b3a96c43204fc0fe7cd76016c6624da",
+      "kind": "test_results",
+      "path": "artifacts\\run-1776555825\\gate-results.json"
+    },
+    {
+      "checksum": "sha256:1a461d3cd60d9cf5e06f71a6237f65d5259fa128f821a8861de132ddc97707f0",
+      "kind": "gate_summary",
+      "path": "artifacts\\run-1776555825\\summary.json"
+    },
+    {
+      "checksum": "sha256:d9c5f8c4d39b11dbf658c5f4b5fad96934a304799b1d1efda64b210ef4c96ef6",
+      "kind": "checklist_evidence",
+      "path": "artifacts\\run-1776555825\\checklist.json"
+    },
+    {
+      "checksum": "sha256:d734692617f079fed7488a6dc945efb31681a5993229484e944cf98551b2a30e",
+      "kind": "baseline_comparison",
+      "path": "artifacts\\run-1776555825\\baseline_comparison.json"
+    },
+    {
+      "checksum": "sha256:6cecb20c79fa62eb775e45270a3cb9f2ca33c6a540c960ca88bb7a1d3700dcb5",
+      "kind": "localization_results",
+      "path": "artifacts\\run-1776555825\\localization_results.json"
+    }
+  ],
+  "created_at": "2026-04-18 23:43:45.905410+00:00",
+  "manifest_id": "manifest-run-1776555825",
+  "purge_status": "active",
+  "retention_until": "2026-10-15 23:43:45.905410+00:00",
+  "run_id": "run-1776555825",
+  "storage_root": "artifacts\\run-1776555825"
+}

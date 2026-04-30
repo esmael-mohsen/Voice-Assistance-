@@ -1,0 +1,15 @@
+target-version = "py312"
+
+exclude = [
+  ".git",
+  ".codex_deps",
+  ".venv",
+  "venv",
+  "__pycache__",
+]
+
+[lint]
+select = ["F"]
+
+[lint.per-file-ignores]
+"scripts/release_validate.py" = ["E402"]

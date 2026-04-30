@@ -1,0 +1,8 @@
+{
+  "candidate_id": "local-candidate",
+  "failed_blocking_gates": [
+    "checklist_validation"
+  ],
+  "run_id": "run-1776555810",
+  "status": "failed"
+}

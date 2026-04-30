@@ -6,17 +6,17 @@ from typing import Optional
 
 @dataclass(frozen=True)
 class OrbTheme:
-    # ChatGPT-like dark purple vibe
-    bg: str = "#0b0b12"
-    panel: str = "#101023"
-    orb_outline: str = "#2a2540"
-    orb_grad_outer: str = "#140d2b"
-    orb_grad_inner: str = "#2a0f5f"
-    glow_outer: str = "#5b21b6"
-    glow_inner: str = "#a78bfa"
-    accent: str = "#c4b5fd"
-    accent_dim: str = "#7c3aed"
-    text: str = "#a1a1aa"
+    # Modern sleek vibe
+    bg: str = "#18181B"
+    panel: str = "#09090B"
+    orb_outline: str = "#3F3F46"
+    orb_grad_outer: str = "#18181B"
+    orb_grad_inner: str = "#4C1D95"
+    glow_outer: str = "#6D28D9"
+    glow_inner: str = "#8B5CF6"
+    accent: str = "#C4B5FD"
+    accent_dim: str = "#7C3AED"
+    text: str = "#A1A1AA"
 
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:

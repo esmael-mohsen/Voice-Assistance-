@@ -1,0 +1,11 @@
+{
+  "audio_permission_status": "fail",
+  "checklist_id": "checklist-1776786207",
+  "completed_at": "2026-04-21 15:43:27.525568+00:00",
+  "completed_by": "release-validator",
+  "crash_recovery_status": "fail",
+  "emergency_control_status": "fail",
+  "notes": "checked=0, unchecked=14",
+  "offline_behavior_status": "fail",
+  "run_id": "run-1776786207"
+}

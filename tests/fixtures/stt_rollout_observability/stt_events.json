@@ -1,0 +1,36 @@
+[
+  {
+    "event_id": "stt-event-001",
+    "session_id": "session-a",
+    "candidate_run_id": "run-20260428-001",
+    "event_type": "cloud_attempt",
+    "source": "google_cloud",
+    "rollout_mode": "shadow",
+    "status": "succeeded",
+    "confidence_bucket": "high",
+    "failure_category": "none",
+    "recovery_outcome": "none",
+    "latency_bucket": "within_target",
+    "reason_code": "cloud_success",
+    "field_safe": true,
+    "raw_audio_present": false,
+    "raw_utterance_present": false
+  },
+  {
+    "event_id": "stt-event-002",
+    "session_id": "session-a",
+    "candidate_run_id": "run-20260428-001",
+    "event_type": "cloud_failure",
+    "source": "google_cloud",
+    "rollout_mode": "commands_low_risk",
+    "status": "failed",
+    "confidence_bucket": "missing",
+    "failure_category": "cloud_timeout",
+    "recovery_outcome": "fallback",
+    "latency_bucket": "over_baseline",
+    "reason_code": "cloud_timeout_strict_fallback",
+    "field_safe": true,
+    "raw_audio_present": false,
+    "raw_utterance_present": false
+  }
+]

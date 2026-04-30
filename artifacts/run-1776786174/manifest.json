@@ -1,0 +1,58 @@
+{
+  "artifact_entries": [
+    {
+      "available": true,
+      "checksum": "sha256:e4b96239d5305a2c2f50f760d9ccea98586e103ab39a290b6a0ce21457db2048",
+      "kind": "test_results",
+      "notes": null,
+      "path": "artifacts\\run-1776786174\\gate-results.json",
+      "source": "generated"
+    },
+    {
+      "available": true,
+      "checksum": "sha256:4dc8335134444355365a3d9f8720bd453d476d85cf19b208ecc06f0e32a558e1",
+      "kind": "gate_summary",
+      "notes": null,
+      "path": "artifacts\\run-1776786174\\summary.json",
+      "source": "generated"
+    },
+    {
+      "available": true,
+      "checksum": "sha256:632408aa0b02dcfb9ba28a866cec91d2732a6cc8cbbc586258ad9859ed1c7ad5",
+      "kind": "checklist_evidence",
+      "notes": null,
+      "path": "artifacts\\run-1776786174\\checklist.json",
+      "source": "generated"
+    },
+    {
+      "available": true,
+      "checksum": "sha256:d734692617f079fed7488a6dc945efb31681a5993229484e944cf98551b2a30e",
+      "kind": "baseline_comparison",
+      "notes": null,
+      "path": "artifacts\\run-1776786174\\baseline_comparison.json",
+      "source": "generated"
+    },
+    {
+      "available": true,
+      "checksum": "sha256:6cecb20c79fa62eb775e45270a3cb9f2ca33c6a540c960ca88bb7a1d3700dcb5",
+      "kind": "localization_results",
+      "notes": null,
+      "path": "artifacts\\run-1776786174\\localization_results.json",
+      "source": "generated"
+    },
+    {
+      "available": true,
+      "checksum": "sha256:74ede90bb1bd94b89acd9ff51de1b98c17d168244d8fe5515254157033682ee1",
+      "kind": "diagnostic_artifact_index",
+      "notes": null,
+      "path": "artifacts\\run-1776786174\\diagnostic-artifacts.json",
+      "source": "generated"
+    }
+  ],
+  "created_at": "2026-04-21 15:43:04.613613+00:00",
+  "manifest_id": "manifest-run-1776786174",
+  "purge_status": "active",
+  "retention_until": "2026-10-18 15:43:04.613613+00:00",
+  "run_id": "run-1776786174",
+  "storage_root": "artifacts\\run-1776786174"
+}

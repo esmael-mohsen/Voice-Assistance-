@@ -1,0 +1,33 @@
+{
+  "retention_days": 180,
+  "metrics": {
+    "wake_to_listen": {
+      "threshold_ms": 100.0,
+      "threshold_pct": 15.0
+    },
+    "listen_to_result": {
+      "threshold_ms": 120.0,
+      "threshold_pct": 15.0
+    },
+    "result_to_speech_start": {
+      "threshold_ms": 100.0,
+      "threshold_pct": 15.0
+    }
+  },
+  "pi_qualification": {
+    "standby_cpu_budget_pct": 25.0,
+    "wake_cpu_peak_pct_max": 55.0,
+    "listen_cpu_peak_pct_max": 60.0,
+    "speak_cpu_peak_pct_max": 60.0,
+    "startup_latency_ms_max": 5000.0,
+    "wake_latency_p95_ms_max": 1200.0,
+    "command_recognition_latency_p95_ms_max": 2500.0,
+    "fallback_latency_p95_ms_max": 3000.0,
+    "cloud_path_memory_mb_max": 300.0,
+    "fallback_path_memory_mb_max": 320.0,
+    "peak_temp_c_max": 80.0,
+    "unexpected_shutdown_count_max": 0.0,
+    "telemetry_completeness_ratio_min": 0.95,
+    "repeated_wake_cycles_min": 60.0
+  }
+}

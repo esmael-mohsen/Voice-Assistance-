@@ -1,6 +1,133 @@
 {
-  "username": "smile",
+  "username": "",
   "language": "en-US",
-  "voice_gender": "male",
-  "speech_speed": 1.15
+  "voice_gender": "female",
+  "speech_speed": 1.0,
+  "speech_provider": "legacy",
+  "pending_speech_provider": null,
+  "deferred_provider_switch": false,
+  "max_listen_seconds": 8.0,
+  "max_speak_seconds": 8.0,
+  "priority_coalescing_window_s": 2.0,
+  "concise_word_limit": 12,
+  "offline_allowlisted_capabilities": [
+    "system_status"
+  ],
+  "wake_primary_mode": "keyword_low_power",
+  "wake_fallback_mode": "hardware_trigger",
+  "wake_dev_fallback_mode": "stt_based_wake",
+  "stt_wake_allowed_in_production": false,
+  "low_power_standby_enabled": true,
+  "non_speech_cues_enabled": true,
+  "command_confidence_high_threshold": 0.82,
+  "command_confidence_medium_threshold": 0.55,
+  "command_protected_threshold": 0.9,
+  "command_allow_missing_confidence_for_unprotected": true,
+  "command_max_retry_cycles": 1,
+  "command_fallback_enabled": true,
+  "command_rescue_enabled": true,
+  "command_offline_local_allowed": true,
+  "standby_capture_profile_id": "standby_wake.default",
+  "onboarding_capture_profile_id": "onboarding.default",
+  "command_capture_profile_id": "command.default",
+  "confirmation_capture_profile_id": "confirmation.default",
+  "closed_vocabulary_retry_limit": 1,
+  "speech_qualification_profile": "default",
+  "enable_audio_noise_suppression": false,
+  "enable_capture_relisten": true,
+  "enable_dictionary_bias": true,
+  "critical_prompt_catalog": {
+    "startup_ready": {
+      "ar": "المساعد جاهز.",
+      "en": "Assistant ready."
+    },
+    "startup_provider_unavailable": {
+      "ar": "مسارات الصوت غير متاحة. أعد التشغيل يدوياً بعد التحقق من المزود.",
+      "en": "Speech providers are unavailable. Manually restart after checking provider health."
+    },
+    "startup_degraded": {
+      "ar": "تم تشغيل المسار الاحتياطي للصوت لهذه الجلسة.",
+      "en": "Degraded startup: temporary legacy provider is active for this session."
+    },
+    "startup_wake_hint": {
+      "ar": "قل: أهلاً EGB لبدء المساعد.",
+      "en": "Say: Hi EGB to start."
+    },
+    "onboarding_intro": {
+      "ar": "هذه أول مرة للتشغيل. سأطرح عليك بعض الأسئلة. إذا لم أفهمك سأطلبها مرة أخرى.",
+      "en": "First time setup. I'll ask a few questions. If I miss it, I'll ask again."
+    },
+    "onboarding_language": {
+      "ar": "هل تفضل العربية أم الإنجليزية؟ قل: عربي أو English.",
+      "en": "Do you prefer Arabic or English? Say: Arabic or English."
+    },
+    "onboarding_voice": {
+      "ar": "اختر نوع الصوت: ذكر أم أنثى؟",
+      "en": "Choose voice: male or female?"
+    },
+    "onboarding_speed": {
+      "ar": "اختر سرعة الكلام: عادي، سريع، بطيء، أو رقم مثل 1.2.",
+      "en": "Choose speech speed: normal, fast, slow, or a number like 1.2."
+    },
+    "onboarding_name": {
+      "ar": "قل اسمك.",
+      "en": "Tell me your name."
+    },
+    "onboarding_name_retry": {
+      "ar": "عذراً، لم أسمع الاسم جيداً. قل اسمك مرة أخرى.",
+      "en": "Sorry, I didn't catch that. Say your name again."
+    },
+    "onboarding_name_confirm": {
+      "ar": "هل اسمك {name}؟ قل نعم أو لا.",
+      "en": "Is your name {name}? Say yes or no."
+    },
+    "onboarding_saved": {
+      "ar": "تم حفظ الإعدادات. شكراً!",
+      "en": "Saved. Thank you!"
+    },
+    "onboarding_retry": {
+      "ar": "حسناً، لنجرب مرة أخرى.",
+      "en": "Okay, let's try again."
+    },
+    "interrupt_stop": {
+      "ar": "تم الإيقاف.",
+      "en": "Stopped."
+    },
+    "interrupt_cancel": {
+      "ar": "تم الإلغاء.",
+      "en": "Cancelled."
+    },
+    "interrupt_emergency": {
+      "ar": "تم تأكيد وضع الطوارئ.",
+      "en": "Emergency mode acknowledged."
+    },
+    "offline_guidance": {
+      "ar": "لا يوجد اتصال. حاول مرة أخرى بعد رجوع الشبكة.",
+      "en": "Network unavailable. Try again when connected."
+    },
+    "confirmation_required": {
+      "ar": "من فضلك أكد تنفيذ هذا الأمر المحمي.",
+      "en": "Please confirm this protected command."
+    },
+    "confirmation_declined": {
+      "ar": "تم إلغاء الأمر المحمي.",
+      "en": "Protected command cancelled."
+    },
+    "confirmation_expired": {
+      "ar": "لم يتم التأكيد. تم إلغاء الأمر للحفاظ على الأمان.",
+      "en": "No confirmation received. The protected command was cancelled."
+    },
+    "clarification_language_required": {
+      "ar": "اللغة غير واضحة. قل: عربي أو English.",
+      "en": "Language is missing. Say: Arabic or English."
+    },
+    "clarification_voice_required": {
+      "ar": "نوع الصوت غير واضح. قل: ذكر أو أنثى.",
+      "en": "Voice type is missing. Say: male or female."
+    },
+    "clarification_failed": {
+      "ar": "لم أتمكن من تحديد الخيار المطلوب. أوقف الأمر للسلامة.",
+      "en": "I still cannot determine the required option, so I am stopping safely."
+    }
+  }
 }

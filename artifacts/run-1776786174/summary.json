@@ -1,0 +1,32 @@
+{
+  "candidate_id": "phase12-full",
+  "commit_sha": "working-tree",
+  "executed_checks": [
+    "compile",
+    "unit_tests",
+    "integration_tests",
+    "smoke_tests",
+    "lint"
+  ],
+  "execution_context": {
+    "completed_at": "2026-04-21 15:43:04.613613+00:00",
+    "invoked_command": "python.exe scripts/release_validate.py --candidate-id phase12-full --commit-sha working-tree",
+    "python_executable": "C:\\Python312\\python.exe",
+    "started_at": "2026-04-21 15:42:54.140816+00:00",
+    "working_directory": "D:\\EGB_FUNCTIONS\\voice_assistant"
+  },
+  "expected_artifact_kinds": [
+    "gate_summary",
+    "test_results",
+    "diagnostic_artifact_index",
+    "checklist_evidence",
+    "baseline_comparison",
+    "localization_results"
+  ],
+  "failed_blocking_gates": [
+    "lint"
+  ],
+  "final_decision_reason": "Blocking gate failure: lint",
+  "run_id": "run-1776786174",
+  "status": "failed"
+}
