@@ -1,10 +1,17 @@
 """Integration tests for structured command dispatch contract."""
 
+import pytest
+
+from controllers import capability_registry as cap_registry
 from core.dispatcher import dispatch
 from core import resolver
 
 
-def setup_function() -> None:
+@pytest.fixture(autouse=True)
+def _reset_dialog_with_fake_vision(vision_adapter_factory):
+    resolver.reset_session_context()
+    cap_registry.set_vision_adapter(vision_adapter_factory())
+    yield
     resolver.reset_session_context()
 
 

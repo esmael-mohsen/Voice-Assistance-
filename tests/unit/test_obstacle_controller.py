@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from core.critical_prompts import contains_arabic_mojibake
 from controllers.capability_contracts import CapabilityTimeoutPolicy, build_request
 from controllers.obstacle_controller import ObstacleCapabilityController
+from settings.settings_manager import settings_manager
 
 
 def _policy() -> CapabilityTimeoutPolicy:
@@ -87,3 +89,27 @@ def test_obstacle_status_snapshot_is_machine_readable(obstacle_adapter_factory) 
     assert snapshot.capability_id == "obstacle_detection"
     assert isinstance(snapshot.details, dict)
     assert "health" in snapshot.details
+
+
+def test_obstacle_arabic_spoken_messages_are_readable(obstacle_adapter_factory) -> None:
+    previous_language = settings_manager.language
+    settings_manager.language = "ar-EG"
+    try:
+        adapter = obstacle_adapter_factory(
+            available=True,
+            observation={
+                "detected": True,
+                "severity": "warning",
+                "distance_meters": 0.8,
+                "sensor_source": "fake_adapter",
+            },
+        )
+        controller = ObstacleCapabilityController(adapter=adapter, timeout_policy=_policy())
+        request = build_request(capability_id="obstacle_detection", action="execute", timeout_seconds=0.1)
+
+        result = controller.execute(request)
+
+        assert "عائق" in result.spoken_text
+        assert not contains_arabic_mojibake(result.spoken_text)
+    finally:
+        settings_manager.language = previous_language

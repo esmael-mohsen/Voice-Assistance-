@@ -1,5 +1,6 @@
 """Resolver behavior tests for structured command execution decisions."""
 
+from controllers import capability_registry as cap_registry
 from core import parser, resolver
 
 
@@ -46,7 +47,19 @@ def test_resolver_clarification_can_resolve_from_option_only_response() -> None:
     assert second_resolution.metadata["clarification_resolved"] is True
 
 
-def test_resolver_uses_follow_up_context_for_emotion_once() -> None:
+def test_resolver_uses_follow_up_context_for_emotion_once(vision_adapter_factory) -> None:
+    cap_registry.set_vision_adapter(
+        vision_adapter_factory(
+            face_response={
+                "status": "success",
+                "spoken_text": "Face Face_321 recognized.",
+                "payload": {
+                    "face_id": "Face_321",
+                    "allow_emotion_follow_up": True,
+                },
+            }
+        )
+    )
     face_parse = parser.parse_command("recognize face")
     face_resolution = resolver.resolve_command(parsed_intent=face_parse, command_text="recognize face")
     assert face_resolution.validation_status == "ready"
@@ -58,6 +71,30 @@ def test_resolver_uses_follow_up_context_for_emotion_once() -> None:
 
     context = resolver.get_session_context()
     assert context.remaining_follow_ups == 0
+
+
+def test_resolver_does_not_arm_emotion_follow_up_when_face_is_unknown(vision_adapter_factory) -> None:
+    cap_registry.set_vision_adapter(
+        vision_adapter_factory(
+            face_response={
+                "status": "success",
+                "spoken_text": "I can see a face, but I could not identify it.",
+                "payload": {
+                    "face_id": None,
+                    "allow_emotion_follow_up": False,
+                    "identified": False,
+                },
+            }
+        )
+    )
+
+    face_parse = parser.parse_command("recognize face")
+    face_resolution = resolver.resolve_command(parsed_intent=face_parse, command_text="recognize face")
+
+    assert face_resolution.validation_status == "ready"
+    context = resolver.get_session_context()
+    assert context.remaining_follow_ups == 0
+    assert context.last_face_id is None
 
 
 def test_resolver_requires_confirmation_for_protected_commands() -> None:
@@ -107,7 +144,8 @@ def test_resolver_confirmation_noise_retries_once_then_expires() -> None:
     assert expired.metadata["confirmation_response"] == "expired"
 
 
-def test_resolver_clears_stale_follow_up_when_confirmation_starts() -> None:
+def test_resolver_clears_stale_follow_up_when_confirmation_starts(vision_adapter_factory) -> None:
+    cap_registry.set_vision_adapter(vision_adapter_factory())
     face_parse = parser.parse_command("recognize face")
     resolver.resolve_command(parsed_intent=face_parse, command_text="recognize face")
     assert resolver.get_session_context().remaining_follow_ups == 1
@@ -118,7 +156,8 @@ def test_resolver_clears_stale_follow_up_when_confirmation_starts() -> None:
     assert resolver.get_session_context().remaining_follow_ups == 0
 
 
-def test_resolver_clears_stale_follow_up_when_clarification_starts() -> None:
+def test_resolver_clears_stale_follow_up_when_clarification_starts(vision_adapter_factory) -> None:
+    cap_registry.set_vision_adapter(vision_adapter_factory())
     face_parse = parser.parse_command("recognize face")
     resolver.resolve_command(parsed_intent=face_parse, command_text="recognize face")
     assert resolver.get_session_context().remaining_follow_ups == 1

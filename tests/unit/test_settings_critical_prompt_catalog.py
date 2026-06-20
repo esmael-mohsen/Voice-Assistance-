@@ -6,9 +6,11 @@ from core.critical_prompts import (
     INTEGRITY_FALLBACK_USED,
     INTEGRITY_REPAIRED,
     build_default_critical_prompt_catalog,
+    contains_arabic_mojibake,
     required_prompt_keys,
     surface_binding_payloads,
 )
+from settings.profile_store import load_profile_snapshot
 
 
 def test_settings_snapshot_seeds_required_critical_prompt_keys(isolated_settings_manager) -> None:
@@ -87,3 +89,16 @@ def test_critical_prompt_surface_binding_inventory_is_unique_and_complete() -> N
         "clarification_voice_required",
         "clarification_failed",
     }.issubset(prompt_keys)
+
+
+def test_default_and_persisted_arabic_prompts_do_not_contain_mojibake() -> None:
+    default_catalog = build_default_critical_prompt_catalog()
+    profile_catalog = dict(load_profile_snapshot().get("critical_prompt_catalog", {}))
+
+    for source_name, catalog in {
+        "default": default_catalog,
+        "profile": profile_catalog,
+    }.items():
+        for prompt_key, entry in catalog.items():
+            arabic_text = str(dict(entry).get("ar", ""))
+            assert not contains_arabic_mojibake(arabic_text), f"{source_name}:{prompt_key}"

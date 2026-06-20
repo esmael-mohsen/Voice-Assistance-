@@ -5,9 +5,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from functools import lru_cache
 from typing import Sequence
 
 from core.command_models import CommandPostProcessingOutcome
+from core.lexicon.loader import LexiconPattern, load_command_lexicon
 
 _ARABIC_RANGE_PATTERN = re.compile(r"[\u0600-\u06FF]")
 _ENGLISH_RANGE_PATTERN = re.compile(r"[a-zA-Z]")
@@ -158,30 +160,6 @@ _CANONICAL_ALIASES: dict[str, tuple[str, str]] = {
     "put on a ticket to the diction": ("start ocr", "en.ocr.ticket_diction_to_text_detection"),
     "put on a tickets to the diction": ("start ocr", "en.ocr.ticket_diction_to_text_detection"),
     "take us to detection": ("start ocr", "en.ocr.take_us_to_text_detection"),
-    "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u064a": (
-        "start ocr",
-        "ar.ocr.incomplete_text_recognition_to_start",
-    ),
-    "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641": (
-        "start ocr",
-        "ar.ocr.incomplete_text_recognition_to_start",
-    ),
-    "\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641": (
-        "start ocr",
-        "ar.ocr.casual_incomplete_recognition_to_start",
-    ),
-    "\u0634\u063a\u0644 \u0644\u064a \u0627\u0644\u062a\u0639\u0631\u0641": (
-        "start ocr",
-        "ar.ocr.casual_incomplete_recognition_to_start",
-    ),
-    "\u0634\u063a\u0644 \u0644\u064a \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u064a": (
-        "start ocr",
-        "ar.ocr.casual_text_recognition_to_start",
-    ),
-    "\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u064a": (
-        "start ocr",
-        "ar.ocr.casual_text_recognition_to_start",
-    ),
     "\u062a\u0639\u0631\u0641 \u0639\u0644\u064a \u0627\u0644\u0646\u0635\u0648\u0635": (
         "start ocr",
         "ar.ocr.text_recognition_to_start",
@@ -241,9 +219,17 @@ _AR_RECOGNITION_TERMS: tuple[str, ...] = (
     "\u0627\u0639\u0631\u0641",
     "\u0627\u0643\u062a\u0634\u0641",
 )
+_AR_READ_TERMS: tuple[str, ...] = (
+    "\u0627\u0642\u0631\u0627",
+    "\u0627\u0642\u0631\u0623",
+)
 _AR_TEXT_TERMS: tuple[str, ...] = (
     "\u0627\u0644\u0646\u0635",
     "\u0627\u0644\u0646\u0635\u0648\u0635",
+    "\u0627\u0644\u0643\u0644\u0627\u0645",
+    "\u0627\u0644\u0643\u0644\u0627\u0645 \u062f\u0647",
+    "\u0627\u0644\u0645\u0643\u062a\u0648\u0628",
+    "\u0627\u0644\u0644\u064a \u0642\u062f\u0627\u0645\u064a",
     "\u0643\u062a\u0627\u0628\u0647",
     "\u0642\u0631\u0627\u0621\u0647",
     "\u0646\u0635",
@@ -324,6 +310,37 @@ def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
     return any(term in text for term in terms)
 
 
+@lru_cache(maxsize=1)
+def _lexicon_aliases() -> dict[str, tuple[str, str]]:
+    try:
+        aliases = load_command_lexicon().aliases()
+    except Exception:  # noqa: BLE001
+        return {}
+    return {_normalize_surface_text(phrase): (canonical, rule_id) for phrase, canonical, rule_id in aliases}
+
+
+@lru_cache(maxsize=1)
+def _lexicon_patterns() -> tuple[LexiconPattern, ...]:
+    try:
+        return load_command_lexicon().patterns()
+    except Exception:  # noqa: BLE001
+        return ()
+
+
+def _pattern_terms_match(text: str, terms: tuple[str, ...]) -> bool:
+    return any(_normalize_surface_text(term) in text for term in terms)
+
+
+def _resolve_lexicon_pattern_alias(text: str) -> tuple[str, str] | None:
+    for pattern in _lexicon_patterns():
+        if pattern.when_any and not _pattern_terms_match(text, pattern.when_any):
+            continue
+        if pattern.and_any and not _pattern_terms_match(text, pattern.and_any):
+            continue
+        return pattern.canonical, pattern.pattern_id
+    return None
+
+
 def _resolve_pattern_alias(text: str) -> tuple[str, str] | None:
     if not _ARABIC_RANGE_PATTERN.search(text):
         return None
@@ -331,6 +348,7 @@ def _resolve_pattern_alias(text: str) -> tuple[str, str] | None:
     has_start = _contains_any(text, _AR_START_TERMS)
     has_stop = _contains_any(text, _AR_STOP_TERMS)
     has_recognition = _contains_any(text, _AR_RECOGNITION_TERMS)
+    has_read = _contains_any(text, _AR_READ_TERMS)
 
     if _contains_any(text, _AR_MONEY_TERMS):
         if has_stop:
@@ -347,7 +365,7 @@ def _resolve_pattern_alias(text: str) -> tuple[str, str] | None:
     if _contains_any(text, _AR_EMOTION_TERMS) and (has_start or has_recognition):
         return "recognize emotion", "ar.emotion.pattern_recognition"
 
-    if _contains_any(text, _AR_TEXT_TERMS) and (has_start or has_recognition):
+    if _contains_any(text, _AR_TEXT_TERMS) and (has_start or has_recognition or has_read):
         return "start ocr", "ar.ocr.pattern_text_recognition_to_start"
 
     if _contains_any(text, _AR_FACE_TERMS) and (has_start or has_recognition):
@@ -426,6 +444,10 @@ def process_command_transcript(
             substitution_ids.append(rule.rule_id)
 
     alias_entry = _CANONICAL_ALIASES.get(normalized)
+    if alias_entry is None:
+        alias_entry = _lexicon_aliases().get(normalized)
+    if alias_entry is None:
+        alias_entry = _resolve_lexicon_pattern_alias(normalized)
     if alias_entry is None:
         alias_entry = _resolve_pattern_alias(normalized)
     if alias_entry is not None:

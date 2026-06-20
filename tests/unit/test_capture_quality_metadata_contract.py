@@ -17,7 +17,7 @@ def test_listen_command_result_emits_capture_metadata_contract_fields() -> None:
     listener = VoiceListener(default_language="en-US", retries=0)
     listener.listen_audio = lambda **_kwargs: _DummyAudio(b"\x08\x00" * 3200)  # type: ignore[method-assign]
     listener._recognize_candidates = (  # type: ignore[method-assign]
-        lambda _audio, *, languages, for_command=False, closed_vocabulary_choices=None: (  # noqa: ARG005
+        lambda _audio, **_kwargs: (
             "read text",
             "en-US",
             ("read text", "read the text"),
@@ -46,7 +46,7 @@ def test_listen_command_result_marks_bounded_relisten_when_clipping_detected() -
     listener = VoiceListener(default_language="en-US", retries=1)
     listener.listen_audio = lambda **_kwargs: _DummyAudio(b"\x08\x00" * 3200)  # type: ignore[method-assign]
     listener._recognize_candidates = (  # type: ignore[method-assign]
-        lambda _audio, *, languages, for_command=False, closed_vocabulary_choices=None: (  # noqa: ARG005
+        lambda _audio, **_kwargs: (
             "start obstacle",
             "en-US",
             ("start obstacle",),
@@ -70,4 +70,3 @@ def test_listen_command_result_marks_bounded_relisten_when_clipping_detected() -
     assert result.capture_attempt is not None
     assert result.capture_attempt.relisten_triggered is True
     assert result.capture_attempt.recovery_prompt_surface == "runtime.capture.retry_short"
-

@@ -19,11 +19,15 @@ def test_recoverable_failure_returns_to_standby_within_five_seconds(
     dispatch_spy_factory,
 ) -> None:
     isolated_settings_manager.apply_settings_snapshot(
-        {"username": "Tester", "language": "en-US"},
+        {
+            "username": "Tester",
+            "language": "en-US",
+            "command_allow_missing_confidence_for_unprotected": True,
+        },
         persist=False,
     )
     events = []
-    listener = listener_factory(any_responses=["hi egb"], command_responses=["run command", None])
+    listener = listener_factory(any_responses=["hi egb"], command_responses=["start obstacle detection", None])
     tts = tts_engine_factory()
     wake = wake_detector_factory(responses=[WakeResult(action=WakeAction.START, phrase="hi egb")])
     dispatch = dispatch_spy_factory(responses=[RuntimeError("temporary failure")])
@@ -93,11 +97,15 @@ def test_unrecoverable_runtime_exception_transitions_to_offline_without_standby(
     dispatch_spy_factory,
 ) -> None:
     isolated_settings_manager.apply_settings_snapshot(
-        {"username": "Tester", "language": "en-US"},
+        {
+            "username": "Tester",
+            "language": "en-US",
+            "command_allow_missing_confidence_for_unprotected": True,
+        },
         persist=False,
     )
     events = []
-    listener = listener_factory(any_responses=["hi egb"], command_responses=["run command", None])
+    listener = listener_factory(any_responses=["hi egb"], command_responses=["start obstacle detection", None])
     tts = tts_engine_factory()
     wake = wake_detector_factory(responses=[WakeResult(action=WakeAction.START, phrase="hi egb")])
     dispatch = dispatch_spy_factory(responses=[UnrecoverableRuntimeError("fatal runtime failure")])

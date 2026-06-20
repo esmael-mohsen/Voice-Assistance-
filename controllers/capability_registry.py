@@ -21,6 +21,14 @@ from controllers.obstacle_controller import (
     ObstacleCapabilityController,
     ObstacleSensorAdapter,
 )
+from controllers.ocr_controller import AssistiveOcrProcessController
+from controllers.money_controller import AssistiveMoneyProcessController
+from controllers.vision_controller import (
+    AssistiveVisionAdapter,
+    AssistiveVisionProcessController,
+    VisionAdapter,
+    VisionCapabilityController,
+)
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -372,6 +380,12 @@ class CapabilityRegistry:
         if isinstance(handler, ObstacleCapabilityController):
             handler.set_adapter(adapter)
 
+    def set_vision_adapter(self, adapter: VisionAdapter) -> None:
+        for capability_id in ("face_recognition", "emotion_recognition"):
+            handler = self._handlers.get(capability_id)
+            if isinstance(handler, VisionCapabilityController):
+                handler.set_adapter(adapter)
+
 
 def _build_default_registry() -> CapabilityRegistry:
     registry = CapabilityRegistry()
@@ -392,8 +406,52 @@ def _build_default_registry() -> CapabilityRegistry:
         execute_timeout_s=3.0,
         hard_max_s=10.0,
     )
+    face_timeout = CapabilityTimeoutPolicy(
+        capability_id="face_recognition",
+        start_timeout_s=2.0,
+        stop_timeout_s=2.0,
+        status_timeout_s=1.5,
+        execute_timeout_s=6.0,
+        hard_max_s=10.0,
+    )
+    emotion_timeout = CapabilityTimeoutPolicy(
+        capability_id="emotion_recognition",
+        start_timeout_s=2.0,
+        stop_timeout_s=2.0,
+        status_timeout_s=1.5,
+        execute_timeout_s=6.0,
+        hard_max_s=10.0,
+    )
+    vision_system_timeout = CapabilityTimeoutPolicy(
+        capability_id="vision_system",
+        start_timeout_s=4.0,
+        stop_timeout_s=6.0,
+        status_timeout_s=1.0,
+        execute_timeout_s=4.0,
+        hard_max_s=10.0,
+    )
+    money_timeout = CapabilityTimeoutPolicy(
+        capability_id="money_detection",
+        start_timeout_s=4.0,
+        stop_timeout_s=6.0,
+        status_timeout_s=1.0,
+        execute_timeout_s=4.0,
+        hard_max_s=10.0,
+    )
+    ocr_timeout = CapabilityTimeoutPolicy(
+        capability_id="ocr",
+        start_timeout_s=4.0,
+        stop_timeout_s=6.0,
+        status_timeout_s=1.0,
+        execute_timeout_s=4.0,
+        hard_max_s=10.0,
+    )
 
     obstacle_handler = ObstacleCapabilityController(adapter=LocalObstacleSensorAdapter(), timeout_policy=obstacle_timeout)
+    ocr_handler = AssistiveOcrProcessController(timeout_policy=ocr_timeout)
+    vision_adapter = AssistiveVisionAdapter()
+    vision_system_handler = AssistiveVisionProcessController(timeout_policy=vision_system_timeout)
+    money_handler = AssistiveMoneyProcessController(timeout_policy=money_timeout)
     registry.register(
         descriptor=CapabilityDescriptor(
             capability_id="obstacle_detection",
@@ -414,82 +472,88 @@ def _build_default_registry() -> CapabilityRegistry:
         descriptor=CapabilityDescriptor(
             capability_id="ocr",
             display_name="OCR",
-            migrated=False,
-            backend_mode="fallback",
+            migrated=True,
+            backend_mode="real",
             supported_actions=frozenset({"start", "stop", "status"}),
-            fallback_policy="unmigrated_only",
+            fallback_policy="disabled",
             requires_network=False,
-            dependency_name="mock_fallback",
-            timeout_policy_id="fallback_default",
+            dependency_name="ocr",
+            timeout_policy_id="ocr",
         ),
-        handler=LegacyFunctionCapabilityHandler(
-            capability_id="ocr",
-            start_fn=mc.fallback_ocr_start,
-            stop_fn=mc.fallback_ocr_stop,
-            status_fn=mc.fallback_ocr_status,
-        ),
-        timeout_policy=fallback_timeout,
+        handler=ocr_handler,
+        timeout_policy=ocr_timeout,
     )
 
     registry.register(
         descriptor=CapabilityDescriptor(
             capability_id="money_detection",
             display_name="Money Detection",
-            migrated=False,
-            backend_mode="fallback",
-            supported_actions=frozenset({"start", "stop", "status"}),
-            fallback_policy="unmigrated_only",
+            migrated=True,
+            backend_mode="real",
+            supported_actions=frozenset({"start", "stop", "execute", "status"}),
+            fallback_policy="disabled",
             requires_network=False,
-            dependency_name="mock_fallback",
-            timeout_policy_id="fallback_default",
+            dependency_name="money_detection",
+            timeout_policy_id="money_detection",
         ),
-        handler=LegacyFunctionCapabilityHandler(
-            capability_id="money_detection",
-            start_fn=mc.fallback_money_start,
-            stop_fn=mc.fallback_money_stop,
-            status_fn=mc.fallback_money_status,
+        handler=money_handler,
+        timeout_policy=money_timeout,
+    )
+
+    registry.register(
+        descriptor=CapabilityDescriptor(
+            capability_id="vision_system",
+            display_name="Vision System",
+            migrated=True,
+            backend_mode="real",
+            supported_actions=frozenset({"start", "stop", "execute", "status"}),
+            fallback_policy="disabled",
+            requires_network=False,
+            dependency_name="vision",
+            timeout_policy_id="vision_system",
         ),
-        timeout_policy=fallback_timeout,
+        handler=vision_system_handler,
+        timeout_policy=vision_system_timeout,
     )
 
     registry.register(
         descriptor=CapabilityDescriptor(
             capability_id="face_recognition",
             display_name="Face Recognition",
-            migrated=False,
-            backend_mode="fallback",
+            migrated=True,
+            backend_mode="real",
             supported_actions=frozenset({"execute", "status"}),
-            fallback_policy="unmigrated_only",
+            fallback_policy="disabled",
             requires_network=False,
-            dependency_name="mock_fallback",
-            timeout_policy_id="fallback_default",
+            dependency_name="vision",
+            timeout_policy_id="face_recognition",
         ),
-        handler=LegacyFunctionCapabilityHandler(
+        handler=VisionCapabilityController(
             capability_id="face_recognition",
-            execute_fn=mc.fallback_face_execute,
-            status_fn=mc.fallback_face_status,
+            adapter=vision_adapter,
+            timeout_policy=face_timeout,
         ),
-        timeout_policy=fallback_timeout,
+        timeout_policy=face_timeout,
     )
 
     registry.register(
         descriptor=CapabilityDescriptor(
             capability_id="emotion_recognition",
             display_name="Emotion Recognition",
-            migrated=False,
-            backend_mode="fallback",
+            migrated=True,
+            backend_mode="real",
             supported_actions=frozenset({"execute", "status"}),
-            fallback_policy="unmigrated_only",
+            fallback_policy="disabled",
             requires_network=False,
-            dependency_name="mock_fallback",
-            timeout_policy_id="fallback_default",
+            dependency_name="vision",
+            timeout_policy_id="emotion_recognition",
         ),
-        handler=LegacyFunctionCapabilityHandler(
+        handler=VisionCapabilityController(
             capability_id="emotion_recognition",
-            execute_fn=mc.fallback_emotion_execute,
-            status_fn=mc.fallback_emotion_status,
+            adapter=vision_adapter,
+            timeout_policy=emotion_timeout,
         ),
-        timeout_policy=fallback_timeout,
+        timeout_policy=emotion_timeout,
     )
 
     registry.register(
@@ -513,6 +577,8 @@ def _build_default_registry() -> CapabilityRegistry:
 
     registry.bind_intent(intent_id="enable_obstacle_detection", capability_id="obstacle_detection", action="start")
     registry.bind_intent(intent_id="disable_obstacle_detection", capability_id="obstacle_detection", action="stop")
+    registry.bind_intent(intent_id="enable_vision", capability_id="vision_system", action="start")
+    registry.bind_intent(intent_id="disable_vision", capability_id="vision_system", action="stop")
     registry.bind_intent(intent_id="enable_OCR", capability_id="ocr", action="start")
     registry.bind_intent(intent_id="disable_OCR", capability_id="ocr", action="stop")
     registry.bind_intent(intent_id="enable_money_detection", capability_id="money_detection", action="start")
@@ -544,6 +610,10 @@ def set_obstacle_adapter(adapter: ObstacleSensorAdapter) -> None:
     get_default_registry().set_obstacle_adapter(adapter)
 
 
+def set_vision_adapter(adapter: VisionAdapter) -> None:
+    get_default_registry().set_vision_adapter(adapter)
+
+
 def execute_intent(intent_id: str, *, params: dict[str, Any] | None = None) -> CapabilityResult:
     return get_default_registry().execute_intent(intent_id, params=params)
 
@@ -571,6 +641,14 @@ def enable_obstacle_detection() -> dict[str, Any]:
 
 def disable_obstacle_detection() -> dict[str, Any]:
     return intent_legacy_response("disable_obstacle_detection")
+
+
+def enable_vision() -> dict[str, Any]:
+    return intent_legacy_response("enable_vision")
+
+
+def disable_vision() -> dict[str, Any]:
+    return intent_legacy_response("disable_vision")
 
 
 def enable_OCR() -> dict[str, Any]:

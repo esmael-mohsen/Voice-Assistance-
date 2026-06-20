@@ -157,7 +157,7 @@ def test_cloud_disabled_keeps_local_candidate_ordering_for_standby_wake(
     )
     assert candidates
     assert candidates[0][0] == "hi egb"
-    assert candidates[0][2] == "local_vosk"
+    assert candidates[0][2] == "wake_strict_vosk_fallback"
 
 
 def test_cloud_failure_keeps_strict_local_wake_fallback_available(

@@ -316,6 +316,138 @@ def test_medium_confidence_normalized_rescue_command_executes(
     assert decision.decision_action == "execute"
 
 
+def test_medium_confidence_normalized_local_first_command_executes(
+    isolated_settings_manager,
+    listener_factory,
+    tts_engine_factory,
+    wake_detector_factory,
+) -> None:
+    runtime = _runtime(
+        isolated_settings_manager=isolated_settings_manager,
+        listener_factory=listener_factory,
+        tts_engine_factory=tts_engine_factory,
+        wake_detector_factory=wake_detector_factory,
+    )
+    recognition = CommandRecognitionResult(
+        session_id="s3c",
+        recognition_path="local_first",
+        provider_id="legacy",
+        primary_transcript="\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635",
+        confidence_score=0.81,
+        confidence_available=True,
+        alternative_transcripts=(
+            "\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635",
+            "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635",
+        ),
+        detected_language="ar-EG",
+        selected_language="ar-EG",
+        latency_ms=30,
+        error_code=None,
+    )
+    post = process_command_transcript(
+        recognition.primary_transcript,
+        alternative_transcripts=recognition.alternative_transcripts,
+    )
+    parsed = parser.parse_command(post.canonical_command_text, canonical_command_text=post.canonical_command_text)
+    decision = runtime._evaluate_confidence_decision(
+        recognition_result=recognition,
+        post_processing=post,
+        parsed_intent=parsed,
+        policy=ConfidenceDecisionPolicy(max_retry_cycles=1),
+        retry_count=0,
+    )
+    assert parsed.intent_id == "enable_OCR"
+    assert decision.decision_band == "medium"
+    assert decision.decision_action == "execute"
+
+
+def test_medium_confidence_normalized_face_command_executes(
+    isolated_settings_manager,
+    listener_factory,
+    tts_engine_factory,
+    wake_detector_factory,
+) -> None:
+    runtime = _runtime(
+        isolated_settings_manager=isolated_settings_manager,
+        listener_factory=listener_factory,
+        tts_engine_factory=tts_engine_factory,
+        wake_detector_factory=wake_detector_factory,
+    )
+    recognition = CommandRecognitionResult(
+        session_id="s3d",
+        recognition_path="local_first",
+        provider_id="legacy",
+        primary_transcript="\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u062c\u0647",
+        confidence_score=0.81,
+        confidence_available=True,
+        alternative_transcripts=(
+            "\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u062c\u0647",
+            "\u062a\u0639\u0631\u0641 \u0639\u0644\u064a \u0627\u0644\u0648\u062c\u0647",
+        ),
+        detected_language="ar-EG",
+        selected_language="ar-EG",
+        latency_ms=30,
+        error_code=None,
+    )
+    post = process_command_transcript(
+        recognition.primary_transcript,
+        alternative_transcripts=recognition.alternative_transcripts,
+    )
+    parsed = parser.parse_command(post.canonical_command_text, canonical_command_text=post.canonical_command_text)
+    decision = runtime._evaluate_confidence_decision(
+        recognition_result=recognition,
+        post_processing=post,
+        parsed_intent=parsed,
+        policy=ConfidenceDecisionPolicy(max_retry_cycles=1),
+        retry_count=0,
+    )
+    assert parsed.intent_id == "recognize_face"
+    assert decision.decision_band == "medium"
+    assert decision.decision_action == "execute"
+
+
+def test_medium_confidence_partial_keyword_match_still_falls_back(
+    isolated_settings_manager,
+    listener_factory,
+    tts_engine_factory,
+    wake_detector_factory,
+) -> None:
+    runtime = _runtime(
+        isolated_settings_manager=isolated_settings_manager,
+        listener_factory=listener_factory,
+        tts_engine_factory=tts_engine_factory,
+        wake_detector_factory=wake_detector_factory,
+    )
+    recognition = CommandRecognitionResult(
+        session_id="s3e",
+        recognition_path="local_first",
+        provider_id="legacy",
+        primary_transcript="start obsticle maybe",
+        confidence_score=0.81,
+        confidence_available=True,
+        alternative_transcripts=("start obsticle maybe", "start obstacle detection"),
+        detected_language="en-US",
+        selected_language="en-US",
+        latency_ms=30,
+        error_code=None,
+    )
+    post = process_command_transcript(
+        recognition.primary_transcript,
+        alternative_transcripts=recognition.alternative_transcripts,
+    )
+    parsed = parser.parse_command(post.canonical_command_text, canonical_command_text=post.canonical_command_text)
+    decision = runtime._evaluate_confidence_decision(
+        recognition_result=recognition,
+        post_processing=post,
+        parsed_intent=parsed,
+        policy=ConfidenceDecisionPolicy(max_retry_cycles=1),
+        retry_count=0,
+    )
+    assert parsed.intent_id == "enable_obstacle_detection"
+    assert decision.decision_band == "medium"
+    assert decision.decision_action == "fallback"
+
+
 def test_protected_command_requires_confirmation_under_uncertainty(
     isolated_settings_manager,
     listener_factory,

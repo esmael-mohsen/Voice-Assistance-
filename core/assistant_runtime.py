@@ -33,6 +33,7 @@ from core.command_models import (
     WakePolicySelection,
     coalesce_priority_events,
 )
+from core.lexicon.loader import load_command_lexicon
 from core.closed_vocabulary import (
     closed_vocabulary_choices,
     closed_vocabulary_context,
@@ -97,6 +98,19 @@ _INTERRUPT_SURFACE_IDS: dict[str, str] = {
     "cancel": "runtime.interrupt.cancel",
     "emergency": "runtime.interrupt.emergency",
 }
+
+
+def _intent_canonical_command(intent_id: str | None) -> str:
+    normalized_intent_id = str(intent_id or "").strip()
+    if not normalized_intent_id:
+        return ""
+    try:
+        intent = load_command_lexicon().intents.get(normalized_intent_id)
+    except Exception:  # noqa: BLE001
+        return ""
+    if intent is None:
+        return ""
+    return str(intent.canonical or "").strip().lower()
 
 
 class RuntimeMode(str, Enum):
@@ -1879,20 +1893,28 @@ class AssistantRuntime:
 
         self._confidence_retry_cycles = 0
         self._transition_and_emit(RuntimeState.SPEAKING, force=True)
-        spoken_result = self._normalize_dispatch_result(result)
+        if self._should_return_to_wake_after_success(intent_id=intent_id, result=result):
+            spoken_result = self._build_success_handoff_message(intent_id=intent_id, result=result)
+            next_runtime_state = RuntimeState.STANDBY
+        else:
+            spoken_result = self._normalize_dispatch_result(result)
+            next_runtime_state = RuntimeState.LISTENING
         self._emit_assistant(spoken_result)
         self._emit_guided_dialog_outcome(
             status="accepted",
             spoken_text=spoken_result,
             error_code=None,
-            next_runtime_state=RuntimeState.LISTENING.value,
+            next_runtime_state=next_runtime_state.value,
             closed_vocabulary_id=active_recognition.closed_vocabulary_id,
             accepted_option_id=str(intent_id or "command_dispatched"),
             retry_count=self._confidence_retry_cycles,
             retry_limit=self._settings.command_max_retry_cycles,
         )
         self._clear_active_operation()
-        self._transition_and_emit(RuntimeState.LISTENING, force=True)
+        if next_runtime_state == RuntimeState.STANDBY:
+            self._active = False
+            self._wake_cycle_locked = False
+        self._transition_and_emit(next_runtime_state, force=True)
 
     def _command_confidence_policy(self) -> ConfidenceDecisionPolicy:
         snapshot = self._settings_snapshot()
@@ -2048,13 +2070,32 @@ class AssistantRuntime:
                 decision_action = "fallback" if policy.fallback_enabled and not fallback_attempted else "retry"
                 reason_code = fallback_reason if decision_action == "fallback" else retry_reason
         elif band == "medium":
+            matched_keyword = str(getattr(parsed_intent, "matched_keyword", "") or "").strip().lower()
+            parser_canonical_text = str(
+                getattr(parsed_intent, "normalized_text", "")
+                or getattr(parsed_intent, "metadata", {}).get("canonical_command_text", "")
+                or ""
+            ).strip().lower()
+            canonical_command_text = str(post_processing.canonical_command_text or "").strip().lower()
+            intent_canonical_text = _intent_canonical_command(intent_id)
+            canonical_inventory_match = bool(
+                canonical_command_text
+                and (
+                    matched_keyword == canonical_command_text
+                    or (
+                        parser_canonical_text == canonical_command_text
+                        and intent_canonical_text == canonical_command_text
+                    )
+                )
+            )
             normalized_unprotected_command = bool(
                 parsed_accepted
                 and not is_protected
                 and not ambiguity_detected
                 and post_processing.post_processing_status == "normalized"
+                and canonical_inventory_match
             )
-            if normalized_unprotected_command and fallback_attempted:
+            if normalized_unprotected_command:
                 decision_action = "execute"
                 reason_code = "medium_confidence_normalized_execute"
             elif policy.fallback_enabled and not fallback_attempted:
@@ -2064,9 +2105,6 @@ class AssistantRuntime:
                 decision_action = "confirm"
                 confirmation_required = True
                 reason_code = "protected_confirmation_required"
-            elif normalized_unprotected_command:
-                decision_action = "execute"
-                reason_code = "medium_confidence_normalized_execute"
             elif retry_count < policy.max_retry_cycles:
                 decision_action = "retry"
                 reason_code = retry_reason
@@ -2867,6 +2905,45 @@ class AssistantRuntime:
         self._interrupt_event.clear()
         self._interrupt_latched = False
 
+    def _should_return_to_wake_after_success(self, *, intent_id: str | None, result: Any) -> bool:
+        if not intent_id or not str(intent_id).startswith("enable_"):
+            return False
+        if isinstance(result, CommandExecutionResult):
+            return str(result.status or "").strip().lower() == "success"
+        status = getattr(result, "status", None)
+        if isinstance(status, str):
+            return status.strip().lower() == "success"
+        if isinstance(result, dict) and isinstance(result.get("status"), str):
+            return str(result["status"]).strip().lower() == "success"
+        return True
+
+    def _capability_handoff_label(self, *, intent_id: str | None, result: Any) -> tuple[str, str]:
+        capability_id = self._capability_id_for_intent(intent_id)
+        if isinstance(result, CommandExecutionResult) and isinstance(result.metadata, dict):
+            metadata_capability = result.metadata.get("capability_id")
+            if isinstance(metadata_capability, str) and metadata_capability.strip():
+                capability_id = metadata_capability.strip()
+        elif isinstance(result, dict):
+            payload = result.get("payload")
+            if isinstance(payload, dict) and isinstance(payload.get("capability_id"), str):
+                capability_id = str(payload["capability_id"]).strip() or capability_id
+
+        labels = {
+            "obstacle_detection": ("اكتشاف العوائق", "obstacle detection"),
+            "ocr": ("قراءة النصوص", "text reading"),
+            "money_detection": ("كشف الفلوس", "money detection"),
+            "vision_system": ("مشروع الرؤية", "vision project"),
+        }
+        return labels.get(str(capability_id or "").strip(), ("الفانكشن", "the function"))
+
+    def _build_success_handoff_message(self, *, intent_id: str | None, result: Any) -> str:
+        ar_label, en_label = self._capability_handoff_label(intent_id=intent_id, result=result)
+        return self._settings.speak_localized(
+            f"تم تشغيل {ar_label} دلوقتي. هرجع لوضع الانتظار، ولو احتجت أي حاجة تاني قول هاي إي جي بي.",
+            f"{en_label.capitalize()} is running now. I am going back to standby. If you need anything else, say hi EGP.",
+            priority="action_confirmation",
+        )
+
     def _capability_id_for_intent(self, intent_id: str | None) -> str | None:
         if not intent_id:
             return None
@@ -2885,6 +2962,8 @@ class AssistantRuntime:
             "disable_OCR": "ocr",
             "enable_money_detection": "money_detection",
             "disable_money_detection": "money_detection",
+            "enable_vision": "vision_system",
+            "disable_vision": "vision_system",
             "recognize_face": "face_recognition",
             "recognize_emotion": "emotion_recognition",
         }
@@ -2899,8 +2978,6 @@ class AssistantRuntime:
         intent_requires_network = intent_id in {
             "enable_OCR",
             "disable_OCR",
-            "enable_money_detection",
-            "disable_money_detection",
             "recognize_face",
             "recognize_emotion",
             "get_system_status",
@@ -2913,6 +2990,8 @@ class AssistantRuntime:
         # Capability flows that can cross non-reversible boundaries should be
         # reported as best-effort cancellation when interrupted mid-flight.
         non_reversible_intents = {
+            "enable_vision",
+            "disable_vision",
             "enable_OCR",
             "disable_OCR",
             "enable_money_detection",

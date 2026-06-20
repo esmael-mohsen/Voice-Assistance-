@@ -237,3 +237,44 @@ def test_cloud_primary_reduces_common_command_fallback_to_retry_baseline(
         cloud_retry_like += int(not candidates or candidates[0][0] != phrase)
 
     assert cloud_retry_like < local_retry_like
+
+
+def test_recognize_candidates_prefers_active_language_when_bilingual_results_are_close(
+    clear_cloud_env,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = VoiceListener(default_language="ar-EG")
+
+    def _fake_candidates(_audio, *, language_code: str, **_kwargs):
+        if language_code == "ar-EG":
+            return [
+                ("\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635", 0.81, "cloud_primary", {
+                    "recognition_source": "cloud_primary",
+                    "selected_language": "ar-EG",
+                    "detected_language": "ar-EG",
+                    "failure_reason_code": None,
+                })
+            ]
+        return [
+            ("does it start off", 0.93, "cloud_primary", {
+                "recognition_source": "cloud_primary",
+                "selected_language": "en-US",
+                "detected_language": "en-US",
+                "failure_reason_code": None,
+            })
+        ]
+
+    monkeypatch.setattr(listener, "_recognize_audio_candidates", _fake_candidates)
+    top_text, top_language, alternatives, top_confidence, metadata = listener._recognize_candidates(
+        _Audio(),
+        languages=["ar-EG", "en-US"],
+        for_command=True,
+        usage_mode="command",
+        recognition_path="local_first",
+    )
+
+    assert top_text == "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635"
+    assert top_language == "ar-EG"
+    assert alternatives[0] == "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635"
+    assert top_confidence == pytest.approx(0.81)
+    assert metadata["selected_language"] == "ar-EG"

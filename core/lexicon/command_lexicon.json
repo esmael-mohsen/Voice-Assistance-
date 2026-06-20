@@ -1,0 +1,441 @@
+{
+  "version": 1,
+  "intents": {
+    "enable_OCR": {
+      "canonical": "start ocr",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "ocr",
+      "phrases": {
+        "en": [
+          "start ocr",
+          "enable ocr",
+          "read text",
+          "text detection",
+          "run text detection",
+          "put on text detection"
+        ],
+        "ar-EG": [
+          "\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635",
+          "\u0634\u063a\u0644 \u0644\u064a \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635",
+          "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635",
+          "\u0627\u0641\u062a\u062d \u0642\u0631\u0627\u0621\u0629 \u0627\u0644\u0646\u0635\u0648\u0635",
+          "\u0627\u0642\u0631\u0627 \u0627\u0644\u0646\u0635",
+          "\u0627\u0648 \u0633\u064a \u0627\u0631"
+        ],
+        "arabizi": [
+          "shaghal el text",
+          "eqra el text"
+        ],
+        "stt_mistakes": [
+          "ocr please",
+          "take us to detection",
+          "run a ticket",
+          "put on a ticket to the diction",
+          "there's really tired pharmacist"
+        ]
+      },
+      "patterns": [
+        {
+          "id": "ar.ocr.start_text_recognition",
+          "when_any": [
+            "\u0634\u063a\u0644",
+            "\u062a\u0634\u063a\u064a\u0644",
+            "\u0627\u0641\u062a\u062d",
+            "\u0627\u0628\u062f\u0623"
+          ],
+          "and_any": [
+            "\u0627\u0644\u0646\u0635",
+            "\u0627\u0644\u0646\u0635\u0648\u0635",
+            "\u0642\u0631\u0627\u0621\u0629"
+          ],
+          "canonical": "start ocr"
+        }
+      ]
+    },
+    "disable_OCR": {
+      "canonical": "stop ocr",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "ocr",
+      "phrases": {
+        "en": ["stop ocr", "disable ocr", "turn off ocr"],
+        "ar-EG": [
+          "\u0648\u0642\u0641 \u0642\u0631\u0627\u0621\u0629 \u0627\u0644\u0646\u0635\u0648\u0635",
+          "\u0627\u0642\u0641\u0644 \u0627\u0648 \u0633\u064a \u0627\u0631"
+        ],
+        "arabizi": ["wa2af ocr"],
+        "stt_mistakes": []
+      },
+      "patterns": [
+        {
+          "id": "ar.ocr.stop_text_recognition",
+          "when_any": [
+            "\u0648\u0642\u0641",
+            "\u0627\u0648\u0642\u0641",
+            "\u0627\u0642\u0641\u0644",
+            "\u0627\u0637\u0641\u064a"
+          ],
+          "and_any": [
+            "\u0627\u0644\u0646\u0635",
+            "\u0627\u0644\u0646\u0635\u0648\u0635",
+            "\u0627\u0648 \u0633\u064a \u0627\u0631"
+          ],
+          "canonical": "stop ocr"
+        }
+      ]
+    },
+    "enable_vision": {
+      "canonical": "start vision",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "vision_system",
+      "phrases": {
+        "en": [
+          "start vision",
+          "run vision",
+          "start vision system",
+          "run vision system",
+          "launch vision"
+        ],
+        "ar-EG": [
+          "شغل فيجن",
+          "شغل الرؤية",
+          "شغل نظام الرؤية",
+          "افتح فيجن",
+          "ابدأ نظام الرؤية"
+        ],
+        "arabizi": [
+          "shaghal vision",
+          "ebda vision"
+        ],
+        "stt_mistakes": [
+          "start fision",
+          "run fision"
+        ]
+      },
+      "patterns": [
+        {
+          "id": "ar.vision.start_system",
+          "when_any": ["شغل", "تشغيل", "افتح", "ابدأ"],
+          "and_any": ["فيجن", "الرؤية", "نظام الرؤية"],
+          "canonical": "start vision"
+        }
+      ]
+    },
+    "disable_vision": {
+      "canonical": "stop vision",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "vision_system",
+      "phrases": {
+        "en": [
+          "stop vision",
+          "close vision",
+          "stop vision system",
+          "turn off vision"
+        ],
+        "ar-EG": [
+          "وقف فيجن",
+          "اقفل فيجن",
+          "اطفي فيجن",
+          "وقف الرؤية",
+          "اقفل الرؤية"
+        ],
+        "arabizi": [
+          "wa2af vision",
+          "a2fel vision"
+        ],
+        "stt_mistakes": [
+          "stop fision"
+        ]
+      },
+      "patterns": [
+        {
+          "id": "ar.vision.stop_system",
+          "when_any": ["وقف", "اوقف", "اقفل", "اطفي", "ايقاف"],
+          "and_any": ["فيجن", "الرؤية", "نظام الرؤية"],
+          "canonical": "stop vision"
+        }
+      ]
+    },
+    "recognize_face": {
+      "canonical": "face recognition",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "face_recognition",
+      "phrases": {
+        "en": [
+          "face recognition",
+          "recognize face",
+          "run face recognition",
+          "detect face",
+          "identify face"
+        ],
+        "ar-EG": [
+          "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u062c\u0647",
+          "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u062c\u0648\u0647",
+          "\u0627\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u0634",
+          "\u0627\u0639\u0631\u0641 \u0627\u0644\u0648\u0634"
+        ],
+        "arabizi": ["e3raf el wish", "face recognition please"],
+        "stt_mistakes": [
+          "run the fish recognition",
+          "\u0631\u0646\u0627 \u0641\u064a\u0633 \u0643\u0648\u0631\u0646\u064a\u0634"
+        ]
+      },
+      "patterns": [
+        {
+          "id": "ar.face.start_face_recognition",
+          "when_any": [
+            "\u0627\u0644\u062a\u0639\u0631\u0641",
+            "\u062a\u0639\u0631\u0641",
+            "\u0627\u062a\u0639\u0631\u0641",
+            "\u0627\u0639\u0631\u0641"
+          ],
+          "and_any": [
+            "\u0627\u0644\u0648\u062c\u0647",
+            "\u0627\u0644\u0648\u062c\u0648\u0647",
+            "\u0627\u0644\u0648\u0634",
+            "\u0641\u064a\u0633"
+          ],
+          "canonical": "face recognition"
+        }
+      ]
+    },
+    "recognize_emotion": {
+      "canonical": "recognize emotion",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "emotion_recognition",
+      "phrases": {
+        "en": ["recognize emotion", "emotion please", "detect emotion", "read emotion"],
+        "ar-EG": [
+          "\u0634\u063a\u0644 \u0627\u0644\u0645\u0634\u0627\u0639\u0631",
+          "\u0627\u0639\u0631\u0641 \u0627\u0644\u0645\u0634\u0627\u0639\u0631",
+          "\u0627\u0642\u0631\u0627 \u0627\u0644\u0645\u0648\u062f"
+        ],
+        "arabizi": ["emotion please", "e2ra el emotion"],
+        "stt_mistakes": ["emot", "face emotion"]
+      },
+      "patterns": [
+        {
+          "id": "ar.emotion.recognition",
+          "when_any": [
+            "\u0634\u063a\u0644",
+            "\u0627\u0639\u0631\u0641",
+            "\u0627\u0642\u0631\u0627",
+            "\u062d\u0644\u0644"
+          ],
+          "and_any": [
+            "\u0627\u0644\u0645\u0634\u0627\u0639\u0631",
+            "\u0627\u064a\u0645\u0648\u0634\u0646",
+            "\u0627\u0644\u0645\u0648\u062f"
+          ],
+          "canonical": "recognize emotion"
+        }
+      ]
+    },
+    "enable_money_detection": {
+      "canonical": "start money detection",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "money_detection",
+      "phrases": {
+        "en": ["start money detection", "money detection", "put on the money detection"],
+        "ar-EG": [
+          "\u0634\u063a\u0644 \u0643\u0634\u0641 \u0627\u0644\u0641\u0644\u0648\u0633",
+          "\u0634\u063a\u0644 \u0627\u0644\u0645\u0627\u0646\u064a",
+          "\u0631\u0646\u0627 \u0645\u0627\u0646\u064a \u062f\u064a\u062a\u0643\u0634\u0646"
+        ],
+        "arabizi": ["shaghal money", "money detection"],
+        "stt_mistakes": ["run the money debt", "run the monie detection"]
+      },
+      "patterns": [
+        {
+          "id": "ar.money.start_detection",
+          "when_any": ["\u0634\u063a\u0644", "\u062a\u0634\u063a\u064a\u0644", "\u0627\u0641\u062a\u062d"],
+          "and_any": [
+            "\u0627\u0644\u0641\u0644\u0648\u0633",
+            "\u0627\u0644\u0646\u0642\u0648\u062f",
+            "\u0627\u0644\u0645\u0627\u0646\u064a",
+            "\u0645\u0627\u0646\u064a"
+          ],
+          "canonical": "start money detection"
+        }
+      ]
+    },
+    "disable_money_detection": {
+      "canonical": "disable money detection",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "money_detection",
+      "phrases": {
+        "en": ["disable money detection", "stop money detection", "disable money"],
+        "ar-EG": ["\u0648\u0642\u0641 \u0627\u0644\u0645\u0627\u0646\u064a", "\u0627\u0642\u0641\u0644 \u0643\u0634\u0641 \u0627\u0644\u0641\u0644\u0648\u0633"],
+        "arabizi": ["wa2af money"],
+        "stt_mistakes": []
+      },
+      "patterns": [
+        {
+          "id": "ar.money.stop_detection",
+          "when_any": ["\u0648\u0642\u0641", "\u0627\u0648\u0642\u0641", "\u0627\u0642\u0641\u0644", "\u0627\u0637\u0641\u064a"],
+          "and_any": [
+            "\u0627\u0644\u0641\u0644\u0648\u0633",
+            "\u0627\u0644\u0646\u0642\u0648\u062f",
+            "\u0627\u0644\u0645\u0627\u0646\u064a",
+            "\u0645\u0627\u0646\u064a"
+          ],
+          "canonical": "disable money detection"
+        }
+      ]
+    },
+    "enable_obstacle_detection": {
+      "canonical": "start obstacle detection",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "obstacle_detection",
+      "phrases": {
+        "en": ["start obstacle detection", "run obstacle detection", "obstacle detection"],
+        "ar-EG": [
+          "\u0634\u063a\u0644 \u0627\u0644\u0639\u0648\u0627\u0626\u0642",
+          "تشغيل كاشف العوائق",
+          "شغل كاشف العوائق",
+          "تشغيل كاشف العائق",
+          "شغل كاشف العائق",
+          "\u0627\u0641\u062a\u062d \u0643\u0634\u0641 \u0627\u0644\u0639\u0648\u0627\u0626\u0642",
+          "\u0634\u063a\u0644 \u0627\u0644\u062d\u0648\u0627\u062c\u0632"
+        ],
+        "arabizi": ["shaghal obstacle", "start obstacle"],
+        "stt_mistakes": ["banana obstacle detection", "rannoch obstacle detection please"]
+      },
+      "patterns": [
+        {
+          "id": "ar.obstacle.start_detection",
+          "when_any": ["\u0634\u063a\u0644", "\u062a\u0634\u063a\u064a\u0644", "\u0627\u0641\u062a\u062d"],
+          "and_any": [
+            "\u0627\u0644\u0639\u0648\u0627\u0626\u0642",
+            "العائق",
+            "كاشف العو",
+            "\u0627\u0644\u062d\u0648\u0627\u062c\u0632",
+            "\u0627\u0648\u0628\u0633\u062a\u0627\u0643\u0644"
+          ],
+          "canonical": "start obstacle detection"
+        }
+      ]
+    },
+    "disable_obstacle_detection": {
+      "canonical": "disable obstacle detection",
+      "category": "capability",
+      "risk_level": "normal",
+      "capability_id": "obstacle_detection",
+      "phrases": {
+        "en": ["disable obstacle detection", "stop obstacle detection", "disable obd"],
+        "ar-EG": [
+          "\u0648\u0642\u0641 \u0627\u0644\u0639\u0648\u0627\u0626\u0642",
+          "ايقاف كاشف العوائق",
+          "ايقاف كاشف العائق",
+          "ايقاف كاشف العو",
+          "إيقاف كاشف العوائق",
+          "اوقف كاشف العوائق",
+          "اقفل كاشف العوائق",
+          "\u0627\u0637\u0641\u064a \u0627\u0644\u062d\u0648\u0627\u062c\u0632"
+        ],
+        "arabizi": ["wa2af obstacle"],
+        "stt_mistakes": [
+          "disable obi",
+          "disable obst",
+          "disable obd",
+          "ايقاف kashf العائق",
+          "ايقاف kashf العوائق",
+          "ايقاف kashf العو"
+        ]
+      },
+      "patterns": [
+        {
+          "id": "ar.obstacle.stop_detection",
+          "when_any": ["\u0648\u0642\u0641", "\u0627\u0648\u0642\u0641", "ايقاف", "إيقاف", "\u0627\u0637\u0641\u064a", "\u0627\u0642\u0641\u0644"],
+          "and_any": [
+            "\u0627\u0644\u0639\u0648\u0627\u0626\u0642",
+            "العائق",
+            "كاشف العو",
+            "kashf العائق",
+            "kashf العوائق",
+            "kashf العو",
+            "\u0627\u0644\u062d\u0648\u0627\u062c\u0632",
+            "\u0627\u0648\u0628\u0633\u062a\u0627\u0643\u0644"
+          ],
+          "canonical": "disable obstacle detection"
+        }
+      ]
+    },
+    "set_language_ar": {
+      "canonical": "switch to arabic",
+      "category": "settings",
+      "risk_level": "normal",
+      "capability_id": null,
+      "phrases": {
+        "en": ["switch to arabic", "switch language to arabic"],
+        "ar-EG": ["\u062d\u0648\u0644 \u0644\u0644\u0639\u0631\u0628\u064a", "\u0627\u0644\u0639\u0631\u0628\u064a"],
+        "arabizi": ["hawel araby"],
+        "stt_mistakes": ["switch language to arab"]
+      },
+      "patterns": []
+    },
+    "set_language_en": {
+      "canonical": "switch to english",
+      "category": "settings",
+      "risk_level": "normal",
+      "capability_id": null,
+      "phrases": {
+        "en": ["switch to english", "switch language to english"],
+        "ar-EG": [
+          "\u062d\u0648\u0644 \u0644\u0644\u0627\u0646\u062c\u0644\u064a\u0632\u064a",
+          "\u0627\u0646\u062c\u0644\u064a\u0632\u064a",
+          "غير للانجليزي",
+          "غير للانجليزيه",
+          "غير للإنجليزي",
+          "غير للإنجليزيه",
+          "تغيير اللغه الانجليزيه",
+          "تغيير اللغة الانجليزية",
+          "تغيير اللغه للانجليزي",
+          "تغيير اللغة للانجليزية",
+          "التغيير للانجليزيه",
+          "التغيير الانجليزيه",
+          "حول للانجليزيه",
+          "حوّل للانجليزيه"
+        ],
+        "arabizi": ["hawel english"],
+        "stt_mistakes": ["engilsh"]
+      },
+      "patterns": []
+    },
+    "get_system_status": {
+      "canonical": "get status",
+      "category": "system",
+      "risk_level": "elevated",
+      "capability_id": "system_status",
+      "phrases": {
+        "en": ["get status", "check system status", "status please"],
+        "ar-EG": ["\u062d\u0627\u0644\u0629 \u0627\u0644\u0646\u0638\u0627\u0645", "\u0627\u0637\u0645\u0646 \u0639\u0644\u0649 \u0627\u0644\u0646\u0638\u0627\u0645"],
+        "arabizi": ["system status"],
+        "stt_mistakes": []
+      },
+      "patterns": []
+    },
+    "stop_system": {
+      "canonical": "close app",
+      "category": "system",
+      "risk_level": "protected",
+      "capability_id": null,
+      "phrases": {
+        "en": ["close app", "stop application", "shutdown assistant"],
+        "ar-EG": ["\u0627\u0642\u0641\u0644 \u0627\u0644\u062a\u0637\u0628\u064a\u0642", "\u0648\u0642\u0641 \u0627\u0644\u0645\u0633\u0627\u0639\u062f"],
+        "arabizi": ["e2fel app"],
+        "stt_mistakes": []
+      },
+      "patterns": []
+    }
+  },
+  "ambiguous_phrases": []
+}

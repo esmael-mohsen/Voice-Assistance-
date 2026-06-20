@@ -21,6 +21,8 @@ SESSION_CONTEXT = SessionCommandContext()
 COMMAND_FUNCTION_MAPPING = {
     "enable_obstacle_detection": cap_registry.enable_obstacle_detection,
     "disable_obstacle_detection": cap_registry.disable_obstacle_detection,
+    "enable_vision": cap_registry.enable_vision,
+    "disable_vision": cap_registry.disable_vision,
     "recognize_face": cap_registry.recognize_face,
     "recognize_emotion": cap_registry.recognize_emotion,
     "enable_money_detection": cap_registry.enable_money_detection,
@@ -54,12 +56,6 @@ PROTECTED_INTENTS = {"stop_system", "reset_settings"}
 MAX_CLARIFICATION_ATTEMPTS = 3
 MAX_CONFIRMATION_RETRY_ATTEMPTS = 1
 NETWORK_REQUIRED_INTENTS = {
-    "enable_OCR",
-    "disable_OCR",
-    "enable_money_detection",
-    "disable_money_detection",
-    "recognize_face",
-    "recognize_emotion",
     "get_system_status",
 }
 
@@ -547,13 +543,20 @@ def _execute_intent(
 
         if intent_id == "recognize_face" and controller_status in {None, "success"}:
             face_id = resolved_params.get("face_id") or _extract_face_id(controller_result)
+            allow_emotion_follow_up = True
+            if isinstance(controller_result, dict):
+                payload = controller_result.get("payload")
+                if isinstance(payload, dict) and "allow_emotion_follow_up" in payload:
+                    allow_emotion_follow_up = bool(payload["allow_emotion_follow_up"])
             if face_id:
                 SESSION_CONTEXT.last_face_id = face_id
-            SESSION_CONTEXT.follow_up_source_intent = "recognize_face"
-            SESSION_CONTEXT.follow_up_target_intent = "recognize_emotion"
-            SESSION_CONTEXT.remaining_follow_ups = 1
-            if face_id:
+            if face_id and allow_emotion_follow_up:
+                SESSION_CONTEXT.follow_up_source_intent = "recognize_face"
+                SESSION_CONTEXT.follow_up_target_intent = "recognize_emotion"
+                SESSION_CONTEXT.remaining_follow_ups = 1
                 resolved_params["face_id"] = face_id
+            else:
+                SESSION_CONTEXT.clear_follow_up()
 
         if intent_id == "recognize_emotion":
             if used_session_context:

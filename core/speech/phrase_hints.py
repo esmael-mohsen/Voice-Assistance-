@@ -7,6 +7,7 @@ import re
 from typing import Iterable, Sequence
 
 from core.closed_vocabulary import closed_vocabulary_choices
+from core.lexicon.loader import load_command_lexicon
 
 _WHITESPACE = re.compile(r"\s+")
 
@@ -27,6 +28,7 @@ COMMAND_PRIORITY_ORDER: tuple[str, ...] = (
 
 COMMAND_SOURCE_CATALOGS: tuple[str, ...] = (
     "safety_critical_commands",
+    "core.lexicon.command_lexicon",
     "core.parser.COMMAND_CATALOG",
     "assistive_phrases",
     "arabic_variants",
@@ -168,6 +170,13 @@ def _command_catalog_keywords(limit: int = 120) -> tuple[str, ...]:
     return _dedupe_stable(phrases)
 
 
+def _lexicon_command_phrases() -> tuple[str, ...]:
+    try:
+        return _dedupe_stable(load_command_lexicon().all_phrases())
+    except Exception:  # noqa: BLE001
+        return ()
+
+
 def _command_priority_stream() -> tuple[str, ...]:
     prioritized: list[str] = []
     prioritized.extend(_SAFETY_CRITICAL_COMMANDS)
@@ -177,6 +186,7 @@ def _command_priority_stream() -> tuple[str, ...]:
     prioritized.extend(_BILINGUAL_VARIANTS)
     prioritized.extend(_PHONETIC_VARIANTS)
     prioritized.extend(_STT_MISTAKE_VARIANTS)
+    prioritized.extend(_lexicon_command_phrases())
     return _dedupe_stable(prioritized)
 
 

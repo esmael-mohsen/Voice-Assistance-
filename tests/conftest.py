@@ -672,6 +672,104 @@ class FakeObstacleAdapter:
         }
 
 
+class FakeVisionAdapter:
+    """Controllable adapter double for face/emotion capability tests."""
+
+    def __init__(
+        self,
+        *,
+        face_available: bool = True,
+        emotion_available: bool = True,
+        face_delay_s: float = 0.0,
+        emotion_delay_s: float = 0.0,
+        face_exception: Exception | None = None,
+        emotion_exception: Exception | None = None,
+        face_response: dict[str, Any] | None = None,
+        emotion_response: dict[str, Any] | None = None,
+    ) -> None:
+        self.face_available = face_available
+        self.emotion_available = emotion_available
+        self.face_delay_s = face_delay_s
+        self.emotion_delay_s = emotion_delay_s
+        self.face_exception = face_exception
+        self.emotion_exception = emotion_exception
+        self.face_response = dict(
+            face_response
+            or {
+                "status": "success",
+                "spoken_text": "Face Face_001 recognized.",
+                "payload": {
+                    "face_id": "Face_001",
+                    "allow_emotion_follow_up": True,
+                    "identified": True,
+                },
+            }
+        )
+        self.emotion_response = dict(
+            emotion_response
+            or {
+                "status": "success",
+                "spoken_text": "Detected a happy emotion for Face_001.",
+                "payload": {
+                    "face_id": "Face_001",
+                    "emotion": "Happy",
+                },
+            }
+        )
+        self.face_calls: list[dict[str, Any]] = []
+        self.emotion_calls: list[dict[str, Any]] = []
+
+    def is_available(self, capability_id: str) -> bool:
+        if capability_id == "face_recognition":
+            return self.face_available
+        if capability_id == "emotion_recognition":
+            return self.emotion_available
+        return False
+
+    def recognize_face(self, *, store_new_face: bool = False) -> dict[str, Any]:
+        import time
+
+        self.face_calls.append({"store_new_face": store_new_face})
+        if self.face_delay_s > 0:
+            time.sleep(self.face_delay_s)
+        if self.face_exception is not None:
+            raise self.face_exception
+        return dict(self.face_response)
+
+    def recognize_emotion(self, *, face_id: str | None = None) -> dict[str, Any]:
+        import time
+
+        self.emotion_calls.append({"face_id": face_id})
+        if self.emotion_delay_s > 0:
+            time.sleep(self.emotion_delay_s)
+        if self.emotion_exception is not None:
+            raise self.emotion_exception
+        response = dict(self.emotion_response)
+        payload = dict(response.get("payload") or {})
+        if face_id is not None:
+            payload.setdefault("face_id", face_id)
+        response["payload"] = payload
+        return response
+
+    def describe_health(self) -> dict[str, Any]:
+        return {
+            "project_path": "fake://vision",
+            "project_path_exists": True,
+            "camera_index": 0,
+            "dependency_error": None,
+            "capabilities": {
+                "face_recognition": {
+                    "available": self.face_available,
+                    "error_code": None if self.face_available else "vision_unavailable",
+                },
+                "emotion_recognition": {
+                    "available": self.emotion_available,
+                    "error_code": None if self.emotion_available else "vision_unavailable",
+                },
+            },
+        }
+
+
 @pytest.fixture()
 def isolated_settings_manager(monkeypatch: pytest.MonkeyPatch):
     """Resets global settings and disables disk profile I/O for tests."""
@@ -916,6 +1014,33 @@ def obstacle_adapter_factory():
             fail_on_start=fail_on_start,
             fail_on_stop=fail_on_stop,
             observation=observation,
+        )
+
+    return _factory
+
+
+@pytest.fixture()
+def vision_adapter_factory():
+    def _factory(
+        *,
+        face_available: bool = True,
+        emotion_available: bool = True,
+        face_delay_s: float = 0.0,
+        emotion_delay_s: float = 0.0,
+        face_exception: Exception | None = None,
+        emotion_exception: Exception | None = None,
+        face_response: dict[str, Any] | None = None,
+        emotion_response: dict[str, Any] | None = None,
+    ) -> FakeVisionAdapter:
+        return FakeVisionAdapter(
+            face_available=face_available,
+            emotion_available=emotion_available,
+            face_delay_s=face_delay_s,
+            emotion_delay_s=emotion_delay_s,
+            face_exception=face_exception,
+            emotion_exception=emotion_exception,
+            face_response=face_response,
+            emotion_response=emotion_response,
         )
 
     return _factory

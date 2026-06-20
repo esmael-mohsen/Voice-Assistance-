@@ -119,6 +119,58 @@ def test_tts_engine_winmm_path_stops_audio_when_interrupted(monkeypatch) -> None
     assert any(command.startswith("stop ") for command in commands)
 
 
+def test_tts_engine_mpg123_backend_is_interruptible(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("EGB_TTS_PLAYBACK_BACKEND", "mpg123")
+    monkeypatch.setenv("EGB_TTS_MPG123_PATH", "/usr/bin/mpg123")
+    monkeypatch.setattr(TTSEngine, "_play_audio_file_with_winmm", lambda *_args, **_kwargs: None)
+
+    class _FakeProcess:
+        def __init__(self) -> None:
+            self.terminated = False
+            self.killed = False
+            self.args: list[str] | None = None
+
+        def poll(self):
+            return None if not self.terminated and not self.killed else 0
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def wait(self, timeout=None):  # noqa: ARG002
+            self.terminated = True
+            return 0
+
+        def kill(self) -> None:
+            self.killed = True
+
+    fake_process = _FakeProcess()
+    launches: list[list[str]] = []
+
+    def _fake_popen(args, **_kwargs):
+        launches.append(list(args))
+        fake_process.args = list(args)
+        return fake_process
+
+    monkeypatch.setattr(tts_engine_module.subprocess, "Popen", _fake_popen)
+    engine = TTSEngine()
+    audio_path = tmp_path / "speech.mp3"
+    audio_path.write_bytes(b"fake")
+
+    def _interrupt() -> None:
+        time.sleep(0.02)
+        engine.request_stop()
+
+    worker = threading.Thread(target=_interrupt, daemon=True)
+    worker.start()
+    result = engine._play_audio_file(audio_path)
+    worker.join(timeout=0.2)
+
+    assert launches == [["/usr/bin/mpg123", "-q", str(audio_path)]]
+    assert result["completion_status"] == "interrupted"
+    assert result["interrupted"] is True
+    assert fake_process.terminated is True
+
+
 def test_tts_engine_enforces_hard_max_duration(monkeypatch) -> None:
     engine = TTSEngine(playback_runner=_interruptible_playback_runner)
 
@@ -201,3 +253,50 @@ def test_tts_engine_falls_back_local_when_cloud_fails_after_cloud_first(monkeypa
     assert result["degraded_mode"] is True
     assert result["degraded_reason"] == "cloud_tts_failed_fell_back_local"
     assert local_calls["count"] == 1
+
+
+def test_tts_engine_prefers_azure_when_enabled(monkeypatch) -> None:
+    engine = TTSEngine()
+    engine._azure_tts_enabled = True
+    calls: list[str] = []
+
+    async def _fake_azure(text, *, interrupt_event=None):  # noqa: ARG001
+        calls.append("azure")
+        return {"completion_status": "success", "interrupted": False}
+
+    async def _fake_edge(text, *, interrupt_event=None):  # noqa: ARG001
+        calls.append("edge")
+        return {"completion_status": "success", "interrupted": False}
+
+    monkeypatch.setattr(engine, "_speak_with_azure_async", _fake_azure)
+    monkeypatch.setattr(engine, "_speak_with_edge_async", _fake_edge)
+
+    result = engine.speak("hello from azure")
+    assert result["completion_status"] == "success"
+    assert calls == ["azure"]
+
+
+def test_tts_engine_falls_back_to_edge_when_azure_fails(monkeypatch) -> None:
+    engine = TTSEngine()
+    engine._azure_tts_enabled = True
+    calls: list[str] = []
+
+    async def _fake_azure(text, *, interrupt_event=None):  # noqa: ARG001
+        calls.append("azure")
+        return {
+            "completion_status": "failed",
+            "interrupted": False,
+            "degraded_mode": True,
+            "degraded_reason": "azure_tts_canceled",
+        }
+
+    async def _fake_edge(text, *, interrupt_event=None):  # noqa: ARG001
+        calls.append("edge")
+        return {"completion_status": "success", "interrupted": False}
+
+    monkeypatch.setattr(engine, "_speak_with_azure_async", _fake_azure)
+    monkeypatch.setattr(engine, "_speak_with_edge_async", _fake_edge)
+
+    result = engine.speak("fallback to edge")
+    assert result["completion_status"] == "success"
+    assert calls == ["azure", "edge"]

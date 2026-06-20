@@ -210,7 +210,7 @@ def test_runtime_lifecycle_flow_for_configured_user(
         dispatcher=dispatch,
     )
 
-    runtime.run_forever(max_cycles=3)
+    runtime.run_forever(max_cycles=2)
 
     status_states = [event.payload["state"] for event in events if event.type == RuntimeEventType.STATUS]
     assert "wake" in status_states
@@ -246,7 +246,7 @@ def test_runtime_protected_close_intent_does_not_dispatch(
         dispatcher=dispatch,
     )
 
-    runtime.run_forever(max_cycles=3)
+    runtime.run_forever(max_cycles=2)
 
     assistant_texts = [event.payload["text"] for event in events if event.type == RuntimeEventType.ASSISTANT]
     assert dispatch.calls == []
@@ -281,7 +281,7 @@ def test_runtime_recoverable_failure_emits_error_then_standby(
         dispatcher=dispatch,
     )
 
-    runtime.run_forever(max_cycles=3)
+    runtime.run_forever(max_cycles=2)
 
     error_events = [event for event in events if event.type == RuntimeEventType.ERROR]
     status_states = [event.payload["state"] for event in events if event.type == RuntimeEventType.STATUS]
@@ -740,6 +740,62 @@ def test_runtime_emits_system_event_with_structured_dispatch_payload(
     system_events = [event for event in events if event.type == RuntimeEventType.SYSTEM]
     assert system_events
     assert any("command_result" in event.payload for event in system_events)
+
+
+def test_runtime_successful_enable_command_hands_off_to_wake_mode(
+    isolated_settings_manager,
+    listener_factory,
+    tts_engine_factory,
+    wake_detector_factory,
+    dispatch_spy_factory,
+) -> None:
+    isolated_settings_manager.apply_settings_snapshot(
+        {"username": "Tester", "language": "en-US"},
+        persist=False,
+    )
+    events, observer = _event_collector()
+    listener = listener_factory(any_responses=["hi egb"], command_responses=["start money detection", None])
+    tts = tts_engine_factory()
+    wake = wake_detector_factory(responses=[WakeResult(action=WakeAction.START, phrase="hi egb")])
+    structured_result = CommandExecutionResult(
+        status="success",
+        spoken_text="Money detection enabled.",
+        intent_id="enable_money_detection",
+        category="capability",
+        metadata={"capability_id": "money_detection"},
+    )
+    dispatch = dispatch_spy_factory(responses=[structured_result])
+
+    runtime = AssistantRuntime(
+        mode=RuntimeMode.CONSOLE,
+        observer=observer,
+        settings_manager_obj=isolated_settings_manager,
+        listener_factory=lambda default_language: listener,
+        tts_engine_factory=lambda: tts,
+        wake_detector_factory=lambda: wake,
+        dispatcher=dispatch,
+    )
+    runtime.run_forever(max_cycles=2)
+
+    assistant_texts = [
+        event.payload["text"]
+        for event in events
+        if event.type == RuntimeEventType.ASSISTANT and isinstance(event.payload.get("text"), str)
+    ]
+    assert any("money detection is running now" in text.lower() for text in assistant_texts)
+
+    guided_payloads = [
+        event.payload["guided_dialog_outcome"]
+        for event in events
+        if event.type == RuntimeEventType.SYSTEM and "guided_dialog_outcome" in event.payload
+    ]
+    assert guided_payloads
+    assert guided_payloads[-1]["next_runtime_state"] == "standby"
+
+    status_states = [event.payload["state"] for event in events if event.type == RuntimeEventType.STATUS]
+    assert "standby" in status_states
+    speaking_index = status_states.index("speaking")
+    assert "listening" not in status_states[speaking_index + 1 :]
 
 
 def test_runtime_emits_startup_readiness_observability(

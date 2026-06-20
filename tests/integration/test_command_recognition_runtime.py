@@ -138,7 +138,7 @@ def test_runtime_executes_high_confidence_local_first_without_fallback(
         listener_responses=[recognition, None],
         dispatch_probe=dispatch_probe,
     )
-    runtime.run_forever(max_cycles=3)
+    runtime.run_forever(max_cycles=2)
 
     assert len(dispatch_probe.calls) == 1
     assert dispatch_probe.calls[0]["text"] == "start obstacle detection"
@@ -150,6 +150,63 @@ def test_runtime_executes_high_confidence_local_first_without_fallback(
     assert telemetry_payloads
     assert telemetry_payloads[-1]["recognition_path"] == "local_first"
     assert telemetry_payloads[-1]["decision_outcome"] == "execute"
+
+
+def test_runtime_successful_start_command_returns_to_standby_after_handoff(
+    isolated_settings_manager,
+    listener_factory,
+    tts_engine_factory,
+    wake_detector_factory,
+) -> None:
+    isolated_settings_manager.apply_settings_snapshot(
+        {"username": "Tester", "language": "en-US"},
+        persist=False,
+    )
+    dispatch_probe = _DispatchProbe(
+        responses=[
+            CommandExecutionResult(
+                status="success",
+                spoken_text="Obstacle detection enabled",
+                intent_id="enable_obstacle_detection",
+                metadata={"capability_id": "obstacle_detection"},
+            )
+        ]
+    )
+    recognition = _recognition(
+        session_id="session-standby-handoff",
+        text="start obstacle detection",
+        alternatives=("start obstacle detection",),
+        recognition_source="cloud_primary",
+        selected_language="en-US",
+        detected_language="en-US",
+    )
+    runtime, events = _runtime(
+        isolated_settings_manager=isolated_settings_manager,
+        listener_factory=listener_factory,
+        tts_engine_factory=tts_engine_factory,
+        wake_detector_factory=wake_detector_factory,
+        listener_responses=[recognition, None],
+        dispatch_probe=dispatch_probe,
+    )
+    runtime.run_forever(max_cycles=2)
+
+    guided_payloads = [
+        event.payload["guided_dialog_outcome"]
+        for event in events
+        if event.type == RuntimeEventType.SYSTEM and "guided_dialog_outcome" in event.payload
+    ]
+    assert guided_payloads
+    assert guided_payloads[-1]["next_runtime_state"] == "standby"
+
+    assistant_texts = [
+        event.payload["text"]
+        for event in events
+        if event.type == RuntimeEventType.ASSISTANT and isinstance(event.payload.get("text"), str)
+    ]
+    assert any("obstacle detection is running now" in text.lower() for text in assistant_texts)
+    status_states = [event.payload["state"] for event in events if event.type == RuntimeEventType.STATUS]
+    speaking_index = status_states.index("speaking")
+    assert "listening" not in status_states[speaking_index + 1 :]
 
 
 def test_runtime_escalates_to_fallback_when_medium_confidence_local_result(

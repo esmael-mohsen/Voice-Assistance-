@@ -3,6 +3,10 @@
 import argparse
 import logging
 
+from core.env_loader import load_env_file
+
+load_env_file()
+
 from core.assistant_runtime import (
     AssistantRuntime,
     RuntimeEvent,

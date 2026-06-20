@@ -1,4 +1,4 @@
-"""High-quality neural TTS powered by Microsoft Edge voices."""
+"""High-quality neural TTS powered by cloud and local speech backends."""
 
 import asyncio
 import os
@@ -10,11 +10,17 @@ import threading
 import time
 from typing import Callable
 import uuid
+from xml.sax.saxutils import escape
 
 try:
     import ctypes
 except ModuleNotFoundError:  # pragma: no cover - ctypes should exist on CPython
     ctypes = None
+
+try:
+    import azure.cognitiveservices.speech as azure_speechsdk
+except ModuleNotFoundError:  # pragma: no cover - exercised only in lean test envs
+    azure_speechsdk = None
 
 try:
     import edge_tts
@@ -35,6 +41,11 @@ _SPEECH_PRIORITY_RANK: dict[str, int] = {
     "error": 2,
     "info": 3,
 }
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = str(os.getenv(name, "1" if default else "0") or "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
 
 
 def _contains_arabic_characters(text: str) -> bool:
@@ -99,6 +110,12 @@ class TTSEngine:
         self._speak_state = threading.Condition()
         self._speech_active = False
         self._active_priority_rank = max(_SPEECH_PRIORITY_RANK.values()) + 1
+        self._azure_tts_enabled = _env_flag("EGB_TTS_AZURE_ENABLED", default=False)
+        self._azure_key = str(os.getenv("EGB_TTS_AZURE_KEY", "") or "").strip()
+        self._azure_region = str(os.getenv("EGB_TTS_AZURE_REGION", "") or "").strip()
+        self._azure_endpoint = str(os.getenv("EGB_TTS_AZURE_ENDPOINT", "") or "").strip()
+        self._playback_backend = str(os.getenv("EGB_TTS_PLAYBACK_BACKEND", "auto") or "auto").strip().lower()
+        self._mpg123_path = str(os.getenv("EGB_TTS_MPG123_PATH", "mpg123") or "mpg123").strip()
 
     def configure(self, language=None, gender=None, speed=None, voice_id=None, pitch=None, volume=None):
         if language:
@@ -328,6 +345,56 @@ class TTSEngine:
             return "neural_voice_profile"
         return None
 
+    def _azure_ready(self) -> bool:
+        if not self._azure_tts_enabled or azure_speechsdk is None:
+            return False
+        if self._azure_endpoint:
+            return bool(self._azure_key)
+        return bool(self._azure_key and self._azure_region)
+
+    def _azure_failure_result(self, reason: str) -> dict[str, object]:
+        return {
+            "completion_status": "failed",
+            "interrupted": False,
+            "degraded_mode": True,
+            "degraded_reason": reason,
+        }
+
+    def _azure_synthesis_ssml(self, text: str) -> str:
+        xml_language = str(self.language or "en-US").strip() or "en-US"
+        voice_name = str(self.voice_id or "").strip() or "en-US-JennyNeural"
+        escaped_text = escape(str(text or ""))
+        return (
+            f"<speak version='1.0' xml:lang='{xml_language}' "
+            "xmlns='http://www.w3.org/2001/10/synthesis'>"
+            f"<voice name='{voice_name}'>"
+            f"<prosody rate='{self._rate}' pitch='{self._pitch}' volume='{self._volume}'>"
+            f"{escaped_text}"
+            "</prosody>"
+            "</voice>"
+            "</speak>"
+        )
+
+    def _build_azure_speech_config(self):
+        if azure_speechsdk is None:
+            return None
+        if self._azure_endpoint:
+            return azure_speechsdk.SpeechConfig(
+                subscription=self._azure_key,
+                endpoint=self._azure_endpoint,
+            )
+        if self._azure_key and self._azure_region:
+            return azure_speechsdk.SpeechConfig(
+                subscription=self._azure_key,
+                region=self._azure_region,
+            )
+        return None
+
+    def _azure_output_format(self):
+        if azure_speechsdk is None:
+            return None
+        return azure_speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3
+
     def _speak_local_engine(
         self,
         text: str,
@@ -380,6 +447,35 @@ class TTSEngine:
         return None
 
     async def _speak_async(self, text, *, interrupt_event: threading.Event | None = None):
+        backend_attempts: list[tuple[str, Callable[[], object]]] = []
+        if self._azure_tts_enabled:
+            backend_attempts.append(
+                (
+                    "azure_speech",
+                    lambda: self._speak_with_azure_async(text, interrupt_event=interrupt_event),
+                )
+            )
+        backend_attempts.append(
+            (
+                "edge_tts",
+                lambda: self._speak_with_edge_async(text, interrupt_event=interrupt_event),
+            )
+        )
+
+        last_failure: dict[str, object] | None = None
+        for backend_name, backend_call in backend_attempts:
+            result = await backend_call()
+            if result.get("completion_status") in {"success", "interrupted", "timeout"}:
+                return result
+            last_failure = dict(result)
+            logger.warning(
+                "[TTS] Backend failed=%s reason=%s",
+                backend_name,
+                result.get("degraded_reason"),
+            )
+        return last_failure or self._azure_failure_result("cloud_tts_unavailable")
+
+    async def _speak_with_edge_async(self, text, *, interrupt_event: threading.Event | None = None):
         logger.info("[TTS] Backend selected=edge_tts voice=%s language=%s", self.voice_id, self.language)
         if edge_tts is None:
             logger.warning("[TTS] edge_tts is unavailable; skipping cloud synthesis")
@@ -392,12 +488,7 @@ class TTSEngine:
                 if isinstance(result, dict):
                     return result
                 return {"completion_status": "success", "interrupted": False}
-            return {
-                "completion_status": "failed",
-                "interrupted": False,
-                "degraded_mode": True,
-                "degraded_reason": "edge_tts_unavailable",
-            }
+            return self._azure_failure_result("edge_tts_unavailable")
         communicate = edge_tts.Communicate(
             text=text,
             voice=self.voice_id,
@@ -410,6 +501,94 @@ class TTSEngine:
         try:
             await communicate.save(str(temp_path))
             return self._play_audio_file(temp_path, interrupt_event=interrupt_event)
+        finally:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("[TTS] Unable to delete temp file %s", temp_path)
+
+    async def _speak_with_azure_async(self, text, *, interrupt_event: threading.Event | None = None):
+        return await asyncio.to_thread(
+            self._speak_with_azure_sync,
+            text,
+            interrupt_event=interrupt_event,
+        )
+
+    def _speak_with_azure_sync(self, text: str, *, interrupt_event: threading.Event | None = None):
+        logger.info("[TTS] Backend selected=azure_speech voice=%s language=%s", self.voice_id, self.language)
+        if azure_speechsdk is None:
+            return self._azure_failure_result("azure_speech_sdk_unavailable")
+        if not self._azure_tts_enabled:
+            return self._azure_failure_result("azure_tts_disabled")
+        if not self._azure_ready():
+            return self._azure_failure_result("azure_tts_not_configured")
+
+        checker = getattr(interrupt_event, "is_set", None) if interrupt_event is not None else None
+        if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+            return {"completion_status": "interrupted", "interrupted": True}
+
+        speech_config = self._build_azure_speech_config()
+        if speech_config is None:
+            return self._azure_failure_result("azure_tts_not_configured")
+        speech_config.speech_synthesis_voice_name = self.voice_id
+        speech_config.speech_synthesis_language = self.language
+        output_format = self._azure_output_format()
+        if output_format is not None:
+            speech_config.set_speech_synthesis_output_format(output_format)
+
+        with NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+            temp_path = Path(tmp_file.name)
+
+        try:
+            audio_config = azure_speechsdk.audio.AudioOutputConfig(filename=str(temp_path))
+            synthesizer = azure_speechsdk.SpeechSynthesizer(
+                speech_config=speech_config,
+                audio_config=audio_config,
+            )
+            result_holder: dict[str, object] = {}
+            failure_holder: dict[str, Exception] = {}
+
+            def _worker() -> None:
+                try:
+                    result_holder["result"] = synthesizer.speak_ssml_async(
+                        self._azure_synthesis_ssml(text)
+                    ).get()
+                except Exception as exc:  # noqa: BLE001
+                    failure_holder["error"] = exc
+
+            worker = threading.Thread(target=_worker, name="AzureSpeechSynthesis", daemon=True)
+            worker.start()
+            while worker.is_alive():
+                if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+                    try:
+                        stop_future = synthesizer.stop_speaking_async()
+                        waiter = getattr(stop_future, "get", None)
+                        if callable(waiter):
+                            waiter()
+                    except Exception:  # noqa: BLE001
+                        logger.debug("[TTS] Azure stop_speaking_async failed", exc_info=True)
+                    worker.join(timeout=0.5)
+                    return {"completion_status": "interrupted", "interrupted": True}
+                time.sleep(self._poll_interval_s)
+
+            if failure_holder:
+                logger.exception("[TTS] Azure synthesis failed", exc_info=failure_holder["error"])
+                return self._azure_failure_result("azure_tts_synthesis_failed")
+
+            result = result_holder.get("result")
+            if result is None:
+                return self._azure_failure_result("azure_tts_no_result")
+            if result.reason == azure_speechsdk.ResultReason.SynthesizingAudioCompleted:
+                return self._play_audio_file(temp_path, interrupt_event=interrupt_event)
+            if result.reason == azure_speechsdk.ResultReason.Canceled:
+                cancellation = result.cancellation_details
+                logger.warning(
+                    "[TTS] Azure synthesis canceled reason=%s error=%s",
+                    getattr(cancellation, "reason", None),
+                    getattr(cancellation, "error_details", None),
+                )
+                return self._azure_failure_result("azure_tts_canceled")
+            return self._azure_failure_result("azure_tts_failed")
         finally:
             try:
                 temp_path.unlink(missing_ok=True)
@@ -430,6 +609,10 @@ class TTSEngine:
         winmm_result = self._play_audio_file_with_winmm(temp_path, interrupt_event=interrupt_event)
         if winmm_result is not None:
             return winmm_result
+
+        mpg123_result = self._play_audio_file_with_mpg123(temp_path, interrupt_event=interrupt_event)
+        if mpg123_result is not None:
+            return mpg123_result
 
         if not self._allow_non_interruptible_fallback:
             logger.warning(
@@ -464,6 +647,56 @@ class TTSEngine:
             time.sleep(self._poll_interval_s)
         thread.join(timeout=self._poll_interval_s)
         return {"completion_status": "success", "interrupted": False}
+
+    def _play_audio_file_with_mpg123(
+        self,
+        temp_path: Path,
+        *,
+        interrupt_event: threading.Event | None = None,
+    ) -> dict[str, object] | None:
+        if self._playback_backend not in {"auto", "mpg123"}:
+            return None
+        if os.name == "nt" and self._playback_backend == "auto":
+            return None
+        checker = getattr(interrupt_event, "is_set", None) if interrupt_event is not None else None
+        if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+            return {"completion_status": "interrupted", "interrupted": True}
+        try:
+            process = subprocess.Popen(
+                [self._mpg123_path, "-q", str(temp_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[TTS] mpg123 playback unavailable: %s", exc)
+            return None
+
+        def _stop_process() -> None:
+            if process.poll() is not None:
+                return
+            try:
+                process.terminate()
+                process.wait(timeout=0.3)
+            except Exception:  # noqa: BLE001
+                try:
+                    process.kill()
+                except Exception:  # noqa: BLE001
+                    logger.debug("[TTS] Failed to kill mpg123 playback process", exc_info=True)
+
+        self._set_playback_stop_callback(_stop_process)
+        try:
+            while process.poll() is None:
+                if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+                    _stop_process()
+                    return {"completion_status": "interrupted", "interrupted": True}
+                time.sleep(self._poll_interval_s)
+            if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+                return {"completion_status": "interrupted", "interrupted": True}
+            return_code = getattr(process, "returncode", 0)
+            return {"completion_status": "success" if return_code == 0 else "failed", "interrupted": False}
+        finally:
+            self._clear_playback_stop_callback()
 
     def _play_audio_file_with_winmm(
         self,

@@ -5,6 +5,7 @@ from typing import Any
 from rapidfuzz import fuzz
 
 from core.command_models import CommandCatalogEntry, ParsedCommandIntent
+from core.lexicon.loader import load_command_lexicon
 from core.text_integrity import contains_arabic_mojibake, contains_unexpected_unicode, normalize_nfc
 
 
@@ -281,6 +282,47 @@ COMMAND_KEYWORDS = {
         "ديتيكت ايموشن",
         "موود ديتيكشن",
         "ايموشن ريكوجنيشن",
+    ],
+
+    # =========================
+    # Vision System
+    # =========================
+    "enable_vision": [
+        "start vision",
+        "run vision",
+        "open vision",
+        "start vision system",
+        "run vision system",
+        "open assistive vision system",
+        "launch vision",
+        "vision on",
+        "start fision",
+        "run fision",
+        "شغل فيجن",
+        "شغل الرؤية",
+        "شغل نظام الرؤية",
+        "افتح فيجن",
+        "افتح الرؤية",
+        "ابدأ فيجن",
+        "ابدأ نظام الرؤية",
+    ],
+
+    "disable_vision": [
+        "stop vision",
+        "close vision",
+        "turn off vision",
+        "stop vision system",
+        "close vision system",
+        "stop assistive vision system",
+        "vision off",
+        "stop fision",
+        "وقف فيجن",
+        "اقفل فيجن",
+        "اطفي فيجن",
+        "وقف الرؤية",
+        "اقفل الرؤية",
+        "اطفي الرؤية",
+        "ايقاف نظام الرؤية",
     ],
 
     # =========================
@@ -827,6 +869,8 @@ COMMAND_KEYWORDS = {
 CAPABILITY_INTENTS = {
     "enable_obstacle_detection",
     "disable_obstacle_detection",
+    "enable_vision",
+    "disable_vision",
     "recognize_face",
     "recognize_emotion",
     "enable_money_detection",
@@ -853,6 +897,127 @@ ELEVATED_SYSTEM_INTENTS = {"start_system", "get_system_status"}
 SYSTEM_INTENTS = PROTECTED_SYSTEM_INTENTS | ELEVATED_SYSTEM_INTENTS
 
 PARAMETER_REQUIRED_INTENTS = {"set_language", "set_voice_gender"}
+
+_INCOMPLETE_ACTION_TOKENS = frozenset(
+    {
+        "activate",
+        "begin",
+        "close",
+        "detect",
+        "disable",
+        "enable",
+        "off",
+        "on",
+        "open",
+        "please",
+        "put",
+        "read",
+        "run",
+        "scan",
+        "start",
+        "stop",
+        "turn",
+        "افتح",
+        "اقفل",
+        "اقرا",
+        "اطفي",
+        "اوقف",
+        "ايقاف",
+        "تعرف",
+        "تشغيل",
+        "شغل",
+        "وقف",
+    }
+)
+
+_COMMAND_FILLER_TOKENS = frozenset(
+    {
+        "a",
+        "an",
+        "can",
+        "could",
+        "for",
+        "me",
+        "now",
+        "please",
+        "the",
+        "to",
+        "you",
+        "على",
+        "علي",
+        "لي",
+        "من",
+    }
+)
+
+_CAPABILITY_OBJECT_MARKERS = {
+    "ocr": (
+        "ocr",
+        "o c r",
+        "reader",
+        "reading",
+        "text",
+        "او سي ار",
+        "النص",
+        "النصوص",
+        "قراءة",
+    ),
+    "obstacle_detection": (
+        "ob",
+        "obd",
+        "obi",
+        "obie",
+        "obst",
+        "obstacle",
+        "obstacles",
+        "اوبي",
+        "اوبستاكل",
+        "الحواجز",
+        "العائق",
+        "العو",
+        "العوائق",
+        "كاشف العو",
+        "kashf الع",
+    ),
+    "money_detection": (
+        "cash",
+        "currency",
+        "money",
+        "monie",
+        "munny",
+        "الفلوس",
+        "الماني",
+        "النقود",
+        "ماني",
+    ),
+    "face_recognition": (
+        "face",
+        "person",
+        "wish",
+        "الوجه",
+        "الوجوه",
+        "الوش",
+        "فيس",
+    ),
+    "emotion_recognition": (
+        "emotion",
+        "feeling",
+        "feelings",
+        "mood",
+        "ايموشن",
+        "المشاعر",
+        "المود",
+    ),
+    "vision_system": (
+        "vision",
+        "vision system",
+        "fision",
+        "assistive vision",
+        "فيجن",
+        "الرؤية",
+        "نظام الرؤية",
+    ),
+}
 
 RISK_PROFILES = {
     "normal": {"threshold": 70.0, "ambiguity_margin": 3.0},
@@ -885,6 +1050,20 @@ def _route_target_for_category(category: str) -> str:
     return "controller"
 
 
+def _lexicon_intent_metadata(intent_id: str) -> dict[str, str | None]:
+    try:
+        intent = load_command_lexicon().intents.get(intent_id)
+    except Exception:  # noqa: BLE001
+        return {}
+    if intent is None:
+        return {}
+    return {
+        "category": intent.category,
+        "risk_level": intent.risk_level,
+        "capability_id": intent.capability_id,
+    }
+
+
 def _intent_family(intent_id: str) -> str:
     normalized = str(intent_id or "").strip().lower()
     if normalized.startswith("set_language_"):
@@ -912,9 +1091,17 @@ def _normalized_keywords(keywords: list[str]) -> tuple[str, ...]:
 
 def _build_command_catalog() -> dict[str, CommandCatalogEntry]:
     catalog: dict[str, CommandCatalogEntry] = {}
-    for intent_id, keywords in COMMAND_KEYWORDS.items():
-        risk_level = _intent_risk(intent_id)
-        category = _intent_category(intent_id)
+    effective_keywords: dict[str, list[str]] = {intent_id: list(keywords) for intent_id, keywords in COMMAND_KEYWORDS.items()}
+    try:
+        for intent_id, phrases in load_command_lexicon().parser_phrases_by_intent().items():
+            effective_keywords.setdefault(intent_id, []).extend(phrases)
+    except Exception:  # noqa: BLE001
+        pass
+
+    for intent_id, keywords in effective_keywords.items():
+        metadata = _lexicon_intent_metadata(intent_id)
+        risk_level = str(metadata.get("risk_level") or _intent_risk(intent_id))
+        category = str(metadata.get("category") or _intent_category(intent_id))
         profile = RISK_PROFILES[risk_level]
         is_follow_up_source = intent_id == "recognize_face"
         catalog[intent_id] = CommandCatalogEntry(
@@ -974,12 +1161,25 @@ def _score_intents(normalized_text: str) -> list[tuple[str, float, str]]:
                 composite_score -= 6.0
 
             score = max(0.0, min(100.0, composite_score))
-            if score > best_score:
+            if score > best_score or (
+                score == best_score
+                and (
+                    keyword_value == normalized_text
+                    or len(keyword_value) > len(best_keyword)
+                )
+            ):
                 best_score = score
                 best_keyword = keyword
         if best_keyword:
             scored.append((intent_id, best_score, best_keyword))
-    scored.sort(key=lambda item: item[1], reverse=True)
+    scored.sort(
+        key=lambda item: (
+            item[1],
+            _normalize_input_text(item[2]) == normalized_text,
+            len(_normalize_input_text(item[2])),
+        ),
+        reverse=True,
+    )
     return scored
 
 
@@ -1014,6 +1214,36 @@ def _rejected_parse(
         accepted=False,
         rejection_reason=reason,
         metadata=metadata,
+    )
+
+
+def _is_incomplete_capability_command(normalized_text: str, entry: CommandCatalogEntry) -> bool:
+    if entry.category != "capability":
+        return False
+
+    text = _normalize_input_text(normalized_text)
+    if not text:
+        return False
+
+    capability_markers = _CAPABILITY_OBJECT_MARKERS.get(_intent_family(entry.intent_id), ())
+    if any(marker in text for marker in capability_markers):
+        return False
+
+    tokens = tuple(token for token in text.replace("-", " ").split() if token)
+    if not tokens:
+        return False
+
+    content_tokens = tuple(token for token in tokens if token not in _COMMAND_FILLER_TOKENS)
+    if not content_tokens:
+        return True
+
+    has_action = any(token in _INCOMPLETE_ACTION_TOKENS for token in content_tokens)
+    if not has_action:
+        return False
+
+    return all(
+        token in _INCOMPLETE_ACTION_TOKENS or token in _COMMAND_FILLER_TOKENS
+        for token in content_tokens
     )
 
 
@@ -1088,6 +1318,7 @@ def parse_command(
     best_intent, best_score, best_keyword = scored[0]
     runner_up_intent = scored[1][0] if len(scored) > 1 else None
     runner_up_score = scored[1][1] if len(scored) > 1 else None
+    runner_up_keyword = scored[1][2] if len(scored) > 1 else None
     entry = COMMAND_CATALOG[best_intent]
     threshold = float(entry.base_threshold)
 
@@ -1107,8 +1338,43 @@ def parse_command(
             extra_metadata=metadata,
         )
 
+    if _is_incomplete_capability_command(normalized_text, entry):
+        metadata["matched_keyword_candidate"] = best_keyword
+        return _rejected_parse(
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            intent_id=best_intent,
+            category=entry.category,
+            risk_level=entry.risk_level,
+            matched_keyword=best_keyword,
+            score=best_score,
+            threshold=threshold,
+            runner_up_intent=runner_up_intent,
+            runner_up_score=runner_up_score,
+            reason="incomplete_command",
+            extra_metadata=metadata,
+        )
+
     if runner_up_intent is not None and runner_up_score is not None:
         if (best_score - runner_up_score) < float(entry.ambiguity_margin):
+            best_is_exact = _normalize_input_text(best_keyword) == normalized_text
+            runner_is_exact = _normalize_input_text(runner_up_keyword or "") == normalized_text
+            if best_is_exact and not runner_is_exact:
+                return ParsedCommandIntent(
+                    raw_text=raw_text,
+                    normalized_text=normalized_text,
+                    intent_id=best_intent,
+                    category=entry.category,
+                    risk_level=entry.risk_level,
+                    matched_keyword=best_keyword,
+                    score=best_score,
+                    threshold=threshold,
+                    runner_up_intent=runner_up_intent,
+                    runner_up_score=runner_up_score,
+                    accepted=True,
+                    rejection_reason=None,
+                    metadata=metadata,
+                )
             best_family = _intent_family(best_intent)
             runner_family = _intent_family(runner_up_intent)
             if (

@@ -77,6 +77,14 @@ def test_arabic_enable_ocr_letters_canonicalize_to_enable_ocr() -> None:
     assert "ar.ocr.enable_letters" in outcome.substitution_ids
 
 
+def test_arabic_read_this_text_canonicalizes_to_start_ocr() -> None:
+    outcome = process_command_transcript("\u0627\u0642\u0631\u0627 \u0644\u064a \u0627\u0644\u0643\u0644\u0627\u0645 \u062f\u0647")
+
+    assert outcome.canonical_command_text == "start ocr"
+    assert outcome.post_processing_status == "normalized"
+    assert "ar.ocr.pattern_text_recognition_to_start" in outcome.substitution_ids
+
+
 def test_natural_short_capability_commands_canonicalize_to_actions() -> None:
     cases = {
         "put on the obstacle detection please": "start obstacle detection",
@@ -97,15 +105,13 @@ def test_natural_short_capability_commands_canonicalize_to_actions() -> None:
         "\u0631\u0646\u0627 \u0641\u064a\u0633 \u0643\u0648\u0631\u0646\u064a\u0634": "face recognition",
         "emot": "recognize emotion",
         "emotion please": "recognize emotion",
-        "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649": "start ocr",
-        "\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641": "start ocr",
-        "\u0634\u063a\u0644 \u0644\u064a \u0627\u0644\u062a\u0639\u0631\u0641": "start ocr",
-        "\u0634\u063a\u0644 \u0644\u064a \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649": "start ocr",
         "\u0634\u063a\u0644 \u0644\u064a \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635": "start ocr",
         "\u0634\u063a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635": "start ocr",
         "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635": "start ocr",
         "\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635": "start ocr",
         "\u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0646\u0635\u0648\u0635": "start ocr",
+        "\u0627\u0642\u0631\u0627 \u0644\u064a \u0627\u0644\u0646\u0635": "start ocr",
+        "\u0627\u0642\u0631\u0627 \u0644\u064a \u0627\u0644\u0643\u0644\u0627\u0645 \u062f\u0647": "start ocr",
         "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u062c\u0647": "face recognition",
         "\u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u062c\u0648\u0647": "face recognition",
         "\u0627\u062a\u0639\u0631\u0641 \u0639\u0644\u0649 \u0627\u0644\u0648\u0634": "face recognition",
@@ -113,7 +119,13 @@ def test_natural_short_capability_commands_canonicalize_to_actions() -> None:
         "\u0634\u063a\u0644 \u0643\u0634\u0641 \u0627\u0644\u0641\u0644\u0648\u0633": "start money detection",
         "\u0648\u0642\u0641 \u0627\u0644\u0645\u0627\u0646\u064a": "disable money detection",
         "\u0634\u063a\u0644 \u0627\u0644\u0639\u0648\u0627\u0626\u0642": "start obstacle detection",
+        "تشغيل كاشف العوائق": "start obstacle detection",
         "\u0648\u0642\u0641 \u0627\u0644\u0639\u0648\u0627\u0626\u0642": "disable obstacle detection",
+        "ايقاف كاشف العو": "disable obstacle detection",
+        "ايقاف كاشف العوائق": "disable obstacle detection",
+        "ايقاف kashf العائق": "disable obstacle detection",
+        "غير للانجليزي": "switch to english",
+        "التغيير للانجليزيه": "switch to english",
     }
 
     for transcript, canonical in cases.items():

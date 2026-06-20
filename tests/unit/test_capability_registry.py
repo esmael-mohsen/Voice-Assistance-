@@ -26,11 +26,64 @@ def test_registry_executes_obstacle_via_real_path_without_fallback() -> None:
     assert result.metadata["migrated"] is True
 
 
-def test_registry_executes_unmigrated_ocr_via_explicit_fallback() -> None:
-    result = cap_registry.execute_intent("enable_OCR")
+def test_registry_binds_ocr_start_intent_to_real_ocr_capability() -> None:
+    registry = cap_registry.get_default_registry()
+    descriptor = registry.descriptor_for_intent("enable_OCR")
+
+    assert descriptor is not None
+    assert descriptor.capability_id == "ocr"
+    assert descriptor.migrated is True
+    assert descriptor.backend_mode == "real"
+
+
+def test_registry_binds_face_intent_to_real_vision_capability() -> None:
+    registry = cap_registry.get_default_registry()
+    descriptor = registry.descriptor_for_intent("recognize_face")
+
+    assert descriptor is not None
+    assert descriptor.capability_id == "face_recognition"
+    assert descriptor.migrated is True
+    assert descriptor.backend_mode == "real"
+
+
+def test_registry_binds_vision_start_intent_to_real_vision_system_capability() -> None:
+    registry = cap_registry.get_default_registry()
+    descriptor = registry.descriptor_for_intent("enable_vision")
+
+    assert descriptor is not None
+    assert descriptor.capability_id == "vision_system"
+    assert descriptor.migrated is True
+    assert descriptor.backend_mode == "real"
+
+
+def test_registry_binds_money_start_intent_to_real_money_capability() -> None:
+    registry = cap_registry.get_default_registry()
+    descriptor = registry.descriptor_for_intent("enable_money_detection")
+
+    assert descriptor is not None
+    assert descriptor.capability_id == "money_detection"
+    assert descriptor.migrated is True
+    assert descriptor.backend_mode == "real"
+
+
+def test_registry_can_inject_test_vision_adapter(vision_adapter_factory) -> None:
+    adapter = vision_adapter_factory(
+        face_response={
+            "status": "success",
+            "spoken_text": "Face TestUser recognized.",
+            "payload": {
+                "face_id": "TestUser",
+                "allow_emotion_follow_up": True,
+            },
+        }
+    )
+    cap_registry.set_vision_adapter(adapter)
+
+    result = cap_registry.execute_intent("recognize_face")
+
     assert result.status == "success"
-    assert result.used_fallback is True
-    assert result.metadata["backend_mode"] == "fallback"
+    assert result.used_fallback is False
+    assert result.payload["face_id"] == "TestUser"
 
 
 def test_registry_rejects_unknown_intent() -> None:

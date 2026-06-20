@@ -114,6 +114,17 @@ def _safe_int(value: Any, default: int) -> int:
     return parsed
 
 
+def _language_family(language_code: str | None) -> str | None:
+    cleaned = str(language_code or "").strip().lower()
+    if not cleaned:
+        return None
+    if cleaned.startswith("ar"):
+        return "ar"
+    if cleaned.startswith("en"):
+        return "en"
+    return cleaned.split("-", 1)[0]
+
+
 def classify_stt_failure_reason(reason_code: str | None) -> str:
     normalized = str(reason_code or "").strip().lower()
     if not normalized:
@@ -171,8 +182,9 @@ class VoiceListener:
             self.recognizer.dynamic_energy_adjustment_damping = 0.12
         if hasattr(self.recognizer, "dynamic_energy_ratio"):
             self.recognizer.dynamic_energy_ratio = 1.65
-        # Use slightly longer pause handling to reduce clipped commands.
-        self.recognizer.pause_threshold = 0.85
+        # Give Egyptian/English mixed commands a little more room for natural
+        # pauses before endpointing; short pauses were clipping object words.
+        self.recognizer.pause_threshold = 1.15
         self.recognizer.phrase_threshold = 0.25
         self.recognizer.non_speaking_duration = 0.55
         if hasattr(self.recognizer, "operation_timeout"):
@@ -1314,6 +1326,7 @@ class VoiceListener:
         closed_vocabulary_choices: Sequence[str] | None = None,
     ) -> tuple[str | None, str | None, tuple[str, ...], float | None, dict[str, Any]]:
         entries: list[tuple[float, str, str, float | None, dict[str, Any]]] = []
+        preferred_language_family = _language_family(languages[0] if languages else None)
         for language_code in languages:
             candidates = self._recognize_audio_candidates(
                 audio,
@@ -1335,6 +1348,14 @@ class VoiceListener:
                 if not normalized:
                     continue
                 rank = self._rank_candidate(normalized, confidence=confidence, source=source)
+                candidate_language_family = _language_family(language_code)
+                if (
+                    preferred_language_family is not None
+                    and candidate_language_family == preferred_language_family
+                ):
+                    # Keep the active session language slightly ahead when
+                    # bilingual cloud alternatives are otherwise near-tied.
+                    rank += 0.16
                 entry_metadata = dict(metadata)
                 entry_metadata.setdefault("recognition_source", source)
                 entry_metadata.setdefault("selected_language", language_code)

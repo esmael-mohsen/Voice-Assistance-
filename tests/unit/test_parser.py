@@ -26,6 +26,39 @@ def test_parser_accepts_natural_sentence_with_embedded_command() -> None:
     assert parsed.intent_id == "enable_obstacle_detection"
 
 
+def test_parser_accepts_vision_lifecycle_commands() -> None:
+    parsed_start = parser.parse_command("please run vision system now")
+    parsed_stop = parser.parse_command("stop vision")
+
+    assert parsed_start.accepted is True
+    assert parsed_start.intent_id == "enable_vision"
+    assert parsed_stop.accepted is True
+    assert parsed_stop.intent_id == "disable_vision"
+
+
+def test_parser_rejects_action_only_capability_fragment() -> None:
+    parsed = parser.parse_command("please turn off")
+    assert parsed.accepted is False
+    assert parsed.rejection_reason == "incomplete_command"
+
+
+def test_parser_rejects_arabic_recognition_fragment_without_target() -> None:
+    parsed = parser.parse_command("تشغيل التعرف")
+    assert parsed.accepted is False
+
+
+def test_parser_keeps_object_bearing_capability_commands() -> None:
+    parsed = parser.parse_command("please turn off ocr")
+    assert parsed.accepted is True
+    assert parsed.intent_id == "disable_OCR"
+
+
+def test_parser_prefers_exact_disable_over_bare_enable_keyword() -> None:
+    parsed = parser.parse_command("disable obstacle detection")
+    assert parsed.accepted is True
+    assert parsed.intent_id == "disable_obstacle_detection"
+
+
 def test_parser_accepts_language_switch_in_longer_phrase() -> None:
     parsed = parser.parse_command("please switch to english now")
     assert parsed.accepted is True
