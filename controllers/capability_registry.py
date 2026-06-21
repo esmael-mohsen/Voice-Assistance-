@@ -17,7 +17,6 @@ from controllers.capability_contracts import (
     build_result,
 )
 from controllers.obstacle_controller import (
-    LocalObstacleSensorAdapter,
     ObstacleCapabilityController,
     ObstacleSensorAdapter,
 )
@@ -29,6 +28,7 @@ from controllers.vision_controller import (
     VisionAdapter,
     VisionCapabilityController,
 )
+from controllers.walk_controller import WalkAssistantProcessController
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -447,7 +447,7 @@ def _build_default_registry() -> CapabilityRegistry:
         hard_max_s=10.0,
     )
 
-    obstacle_handler = ObstacleCapabilityController(adapter=LocalObstacleSensorAdapter(), timeout_policy=obstacle_timeout)
+    obstacle_handler = WalkAssistantProcessController(timeout_policy=obstacle_timeout)
     ocr_handler = AssistiveOcrProcessController(timeout_policy=ocr_timeout)
     vision_adapter = AssistiveVisionAdapter()
     vision_system_handler = AssistiveVisionProcessController(timeout_policy=vision_system_timeout)
@@ -461,7 +461,7 @@ def _build_default_registry() -> CapabilityRegistry:
             supported_actions=frozenset({"start", "stop", "execute", "status"}),
             fallback_policy="disabled",
             requires_network=False,
-            dependency_name="obstacle_sensor",
+            dependency_name="walk_assistant",
             timeout_policy_id="obstacle_detection",
         ),
         handler=obstacle_handler,

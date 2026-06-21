@@ -27,6 +27,7 @@ from controllers.capability_contracts import (
     build_result,
     invoke_with_timeout,
 )
+from controllers.external_process_runtime import build_external_process_env, write_launch_diagnostics
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -987,19 +988,30 @@ class AssistiveVisionProcessController:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / f"assistive_vision_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.log"
         stop_file = self._new_stop_file()
-        env = dict(os.environ)
-        env["PYTHONUNBUFFERED"] = "1"
-        env["PYTHONIOENCODING"] = "utf-8"
+        env = build_external_process_env(extra={VISION_STOP_FILE_ENV: str(stop_file)})
         env.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-        env[VISION_STOP_FILE_ENV] = str(stop_file)
         python_path = self._resolved_python()
         if python_path is None:
             raise RuntimeError("vision_python_missing")
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         log_handle = log_path.open("a", encoding="utf-8", errors="replace")
+        argv = [str(python_path), "-u", str(self._main_script_path)]
+        write_launch_diagnostics(
+            log_handle,
+            label="vision",
+            cwd=self._project_path,
+            argv=argv,
+            env=env,
+            paths={
+                "project_path": self._project_path,
+                "main_script_path": self._main_script_path,
+                "python_path": python_path,
+                "stop_file_path": stop_file,
+            },
+        )
         process = self._popen_factory(
-            [str(python_path), "-u", str(self._main_script_path)],
+            argv,
             cwd=str(self._project_path),
             stdout=log_handle,
             stderr=subprocess.STDOUT,
@@ -1063,7 +1075,7 @@ class AssistiveVisionProcessController:
                     "تم تشغيل مشروع الرؤية.",
                     "The vision project is now running.",
                 ),
-                payload=self._status_details(),
+                payload={**self._status_details(), "suspend_assistant_listening": True},
                 backend_name=VISION_PROCESS_BACKEND_NAME,
             )
 

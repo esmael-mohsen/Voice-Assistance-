@@ -17,12 +17,14 @@ def test_registry_binds_obstacle_start_intent_to_migrated_capability() -> None:
     assert descriptor.capability_id == "obstacle_detection"
     assert descriptor.migrated is True
     assert descriptor.backend_mode == "real"
+    assert descriptor.dependency_name == "walk_assistant"
 
 
-def test_registry_executes_obstacle_via_real_path_without_fallback() -> None:
+def test_registry_executes_obstacle_real_path_without_mock_fallback() -> None:
     result = cap_registry.execute_intent("enable_obstacle_detection")
-    assert result.status == "success"
+    assert result.status in {"success", "unavailable", "failed"}
     assert result.used_fallback is False
+    assert result.backend_name == "walk_assistant_process"
     assert result.metadata["migrated"] is True
 
 

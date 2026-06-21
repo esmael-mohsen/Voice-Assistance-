@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from controllers.external_process_runtime import (
+    build_external_process_env,
+    write_launch_diagnostics,
+)
+
+
+def test_external_process_env_maps_pi_display_overrides(monkeypatch) -> None:
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("XAUTHORITY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setenv("EGB_RUNTIME_TARGET", "raspberry_pi")
+    monkeypatch.setenv("EGB_EXTERNAL_DISPLAY", ":0")
+    monkeypatch.setenv("EGB_EXTERNAL_XAUTHORITY", "/run/user/1000/.mutter-Xwaylandauth.TEST")
+    monkeypatch.setenv("EGB_EXTERNAL_WAYLAND_DISPLAY", "wayland-0")
+
+    env = build_external_process_env(extra={"CUSTOM_FLAG": "1"})
+
+    assert env["PYTHONUNBUFFERED"] == "1"
+    assert env["PYTHONIOENCODING"] == "utf-8"
+    assert env["DISPLAY"] == ":0"
+    assert env["XAUTHORITY"] == "/run/user/1000/.mutter-Xwaylandauth.TEST"
+    assert env["WAYLAND_DISPLAY"] == "wayland-0"
+    assert env["CUSTOM_FLAG"] == "1"
+
+
+def test_launch_diagnostics_write_actionable_env_and_path_summary(tmp_path: Path) -> None:
+    log_path = tmp_path / "external.log"
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    python_path = project_dir / ".venv" / "bin" / "python"
+    python_path.parent.mkdir(parents=True)
+    python_path.write_text("", encoding="utf-8")
+
+    with log_path.open("a", encoding="utf-8") as handle:
+        write_launch_diagnostics(
+            handle,
+            label="vision",
+            cwd=project_dir,
+            argv=[str(python_path), "-u", str(project_dir / "main.py")],
+            env={
+                "DISPLAY": ":0",
+                "XAUTHORITY": str(tmp_path / "missing-auth"),
+                "WAYLAND_DISPLAY": "wayland-0",
+                "ASSISTANT_MICROPHONE_INDEX": "3",
+            },
+            paths={"python_path": python_path, "project_path": project_dir},
+        )
+
+    content = log_path.read_text(encoding="utf-8")
+
+    assert "[EGB_LAUNCH] label=vision" in content
+    assert "DISPLAY=:0" in content
+    assert "XAUTHORITY=" in content
+    assert "exists=False" in content
+    assert "ASSISTANT_MICROPHONE_INDEX=3" in content
+    assert f"python_path={python_path}" in content
