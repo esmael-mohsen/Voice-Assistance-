@@ -255,6 +255,57 @@ def test_tts_engine_falls_back_local_when_cloud_fails_after_cloud_first(monkeypa
     assert local_calls["count"] == 1
 
 
+def test_tts_engine_falls_back_local_when_cloud_raises_after_cloud_first(monkeypatch) -> None:
+    engine = TTSEngine()
+    local_calls = {"count": 0}
+
+    def _fake_local(text, *, interrupt_event=None):  # noqa: ARG001
+        local_calls["count"] += 1
+        return {"completion_status": "success", "interrupted": False}
+
+    async def _raise_cloud(text, *, interrupt_event=None):  # noqa: ARG001
+        raise RuntimeError("edge handshake rejected")
+
+    monkeypatch.setattr(engine, "_speak_local_engine", _fake_local)
+    monkeypatch.setattr(engine, "_speak_with_edge_async", _raise_cloud)
+
+    result = engine.speak("hello cloud failure")
+
+    assert result["completion_status"] == "success"
+    assert result["degraded_mode"] is True
+    assert result["degraded_reason"] == "cloud_tts_failed_fell_back_local"
+    assert local_calls["count"] == 1
+
+
+def test_tts_engine_uses_espeak_ng_local_backend_on_linux(monkeypatch) -> None:
+    monkeypatch.setenv("EGB_TTS_LOCAL_BACKEND", "espeak-ng")
+    monkeypatch.setenv("EGB_TTS_ESPEAK_NG_PATH", "/usr/bin/espeak-ng")
+    monkeypatch.setattr(tts_engine_module.os, "name", "posix")
+
+    class _FinishedProcess:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+        def wait(self, timeout=None):  # noqa: ARG002
+            return 0
+
+    launches: list[list[str]] = []
+
+    def _fake_popen(args, **_kwargs):
+        launches.append(list(args))
+        return _FinishedProcess()
+
+    monkeypatch.setattr(tts_engine_module.subprocess, "Popen", _fake_popen)
+    engine = TTSEngine()
+
+    result = engine._speak_local_engine("Assistant ready.")
+
+    assert result == {"completion_status": "success", "interrupted": False}
+    assert launches == [["/usr/bin/espeak-ng", "-s", "175", "-v", "en-us", "Assistant ready."]]
+
+
 def test_tts_engine_prefers_azure_when_enabled(monkeypatch) -> None:
     engine = TTSEngine()
     engine._azure_tts_enabled = True

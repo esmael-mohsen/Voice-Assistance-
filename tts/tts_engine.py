@@ -116,6 +116,8 @@ class TTSEngine:
         self._azure_endpoint = str(os.getenv("EGB_TTS_AZURE_ENDPOINT", "") or "").strip()
         self._playback_backend = str(os.getenv("EGB_TTS_PLAYBACK_BACKEND", "auto") or "auto").strip().lower()
         self._mpg123_path = str(os.getenv("EGB_TTS_MPG123_PATH", "mpg123") or "mpg123").strip()
+        self._local_backend = str(os.getenv("EGB_TTS_LOCAL_BACKEND", "auto") or "auto").strip().lower()
+        self._espeak_ng_path = str(os.getenv("EGB_TTS_ESPEAK_NG_PATH", "espeak-ng") or "espeak-ng").strip()
 
     def configure(self, language=None, gender=None, speed=None, voice_id=None, pitch=None, volume=None):
         if language:
@@ -402,6 +404,60 @@ class TTSEngine:
         interrupt_event: threading.Event | None = None,
     ) -> dict[str, object] | None:
         if os.name != "nt":
+            return self._speak_with_espeak_ng(text, interrupt_event=interrupt_event)
+        return self._speak_with_windows_sapi(text, interrupt_event=interrupt_event)
+
+    def _speak_with_espeak_ng(
+        self,
+        text: str,
+        *,
+        interrupt_event: threading.Event | None = None,
+    ) -> dict[str, object] | None:
+        if self._local_backend not in {"auto", "espeak-ng", "espeak"}:
+            return None
+        checker = getattr(interrupt_event, "is_set", None) if interrupt_event is not None else None
+        if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+            return {"completion_status": "interrupted", "interrupted": True}
+
+        language = str(self.language or "en-US").strip().lower()
+        voice = "ar" if language.startswith("ar") or _contains_arabic_characters(text) else "en-us"
+        speed_wpm = str(max(80, min(260, int(round(175 * float(self.speed))))))
+        try:
+            process = subprocess.Popen(
+                [self._espeak_ng_path, "-s", speed_wpm, "-v", voice, str(text)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                text=True,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("[TTS] Failed to start espeak-ng local speech process")
+            return None
+
+        self._set_active_local_process(process)
+        while process.poll() is None:
+            if self._interrupt_requested.is_set() or (callable(checker) and checker()):
+                self._terminate_active_local_process()
+                return {
+                    "completion_status": "interrupted",
+                    "interrupted": True,
+                    "degraded_mode": False,
+                    "degraded_reason": None,
+                }
+            time.sleep(self._poll_interval_s)
+        self._set_active_local_process(None)
+        if process.returncode == 0:
+            return {"completion_status": "success", "interrupted": False}
+        logger.warning("[TTS] espeak-ng process exited with return code %s", process.returncode)
+        return None
+
+    def _speak_with_windows_sapi(
+        self,
+        text: str,
+        *,
+        interrupt_event: threading.Event | None = None,
+    ) -> dict[str, object] | None:
+        if os.name != "nt":
             return None
         checker = getattr(interrupt_event, "is_set", None) if interrupt_event is not None else None
         if self._interrupt_requested.is_set() or (callable(checker) and checker()):
@@ -464,7 +520,11 @@ class TTSEngine:
 
         last_failure: dict[str, object] | None = None
         for backend_name, backend_call in backend_attempts:
-            result = await backend_call()
+            try:
+                result = await backend_call()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[TTS] Backend raised=%s error=%s", backend_name, exc)
+                result = self._azure_failure_result(f"{backend_name}_exception")
             if result.get("completion_status") in {"success", "interrupted", "timeout"}:
                 return result
             last_failure = dict(result)

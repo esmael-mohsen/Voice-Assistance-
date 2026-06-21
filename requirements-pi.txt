@@ -1,3 +1,4 @@
 -r requirements-base.txt
+PyAudio==0.2.14
 vosk==0.3.45
 webrtcvad==2.0.10
