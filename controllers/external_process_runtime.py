@@ -17,6 +17,8 @@ EXTERNAL_WAYLAND_ENV = "EGB_EXTERNAL_WAYLAND_DISPLAY"
 EXTERNAL_TERMINAL_ENABLED_ENV = "EGB_EXTERNAL_TERMINAL_ENABLED"
 EXTERNAL_TERMINAL_APP_ENV = "EGB_EXTERNAL_TERMINAL_APP"
 EXTERNAL_TERMINAL_HOLD_ENV = "EGB_EXTERNAL_TERMINAL_HOLD_ON_EXIT"
+SHARED_CAMERA_INDEX_ENV = "EGB_CAMERA_INDEX"
+SHARED_CAMERA_SOURCE_ENV = "EGB_CAMERA_SOURCE"
 
 _AUTO_TERMINAL_CANDIDATES = (
     "lxterminal",
@@ -35,6 +37,13 @@ _DIAGNOSTIC_ENV_KEYS = (
     "PYTHONUNBUFFERED",
     "PYTHONIOENCODING",
     "ASSISTANT_MICROPHONE_INDEX",
+    "EGB_CAMERA_INDEX",
+    "EGB_CAMERA_SOURCE",
+    "EGB_VISION_CAMERA_INDEX",
+    "CAMERA_INDEX",
+    "ASSISTANT_CAMERA_INDEX",
+    "ASSISTANT_CAMERA_SOURCE",
+    "EGY_MONEY_CAMERA_SOURCE",
     "ASSISTANT_SHOW_WINDOW",
     "ASSISTANT_VOICE_ENABLED",
     "EGB_VISION_COMMAND",
@@ -51,6 +60,7 @@ def build_external_process_env(*, extra: dict[str, str] | None = None) -> dict[s
     env = dict(os.environ)
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
+    _apply_camera_env_aliases(env)
 
     display = env.get(EXTERNAL_DISPLAY_ENV)
     xauthority = env.get(EXTERNAL_XAUTHORITY_ENV)
@@ -69,6 +79,53 @@ def build_external_process_env(*, extra: dict[str, str] | None = None) -> dict[s
         for key, value in extra.items():
             env[str(key)] = str(value)
     return env
+
+
+def _is_int_text(value: str | None) -> bool:
+    try:
+        int(str(value or "").strip())
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _first_nonempty(env: dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = str(env.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _apply_camera_env_aliases(env: dict[str, str]) -> None:
+    camera_source = _first_nonempty(env, SHARED_CAMERA_SOURCE_ENV)
+    shared_camera_index = _first_nonempty(env, SHARED_CAMERA_INDEX_ENV)
+    camera_index = _first_nonempty(
+        env,
+        SHARED_CAMERA_INDEX_ENV,
+        "EGB_VISION_CAMERA_INDEX",
+        "ASSISTANT_CAMERA_INDEX",
+    )
+    if not camera_index and _is_int_text(camera_source):
+        camera_index = camera_source
+
+    if camera_index:
+        env.setdefault(SHARED_CAMERA_INDEX_ENV, camera_index)
+        if shared_camera_index:
+            env["EGB_VISION_CAMERA_INDEX"] = camera_index
+            env["CAMERA_INDEX"] = camera_index
+            env["ASSISTANT_CAMERA_INDEX"] = camera_index
+            env["EGY_MONEY_CAMERA_SOURCE"] = camera_index
+        else:
+            env.setdefault("EGB_VISION_CAMERA_INDEX", camera_index)
+            env.setdefault("CAMERA_INDEX", camera_index)
+            env.setdefault("ASSISTANT_CAMERA_INDEX", camera_index)
+            env.setdefault("EGY_MONEY_CAMERA_SOURCE", camera_index)
+
+    if camera_source:
+        env["EGY_MONEY_CAMERA_SOURCE"] = camera_source
+        if not _is_int_text(camera_source):
+            env["ASSISTANT_CAMERA_SOURCE"] = camera_source
 
 
 def configured_command_argv(command: str | None) -> list[str] | None:

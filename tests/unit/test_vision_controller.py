@@ -539,3 +539,35 @@ def test_vision_process_controller_opens_visible_terminal_when_enabled(monkeypat
     assert launches[0]["args"][:3] == ["lxterminal", f"--working-directory={project_dir.resolve()}", "--command"]
     assert "source .venv/bin/activate && exec python -u main.py" in launches[0]["args"][3]
     assert launches[0]["cwd"] == str(project_dir.resolve())
+
+
+def test_vision_process_controller_maps_shared_camera_index_to_vision_env(monkeypatch, tmp_path: Path) -> None:
+    project_dir = tmp_path / "vision-project"
+    project_dir.mkdir()
+    (project_dir / "main.py").write_text("print('vision app')\n", encoding="utf-8")
+    monkeypatch.setenv("EGB_VISION_COMMAND", "bash -lc 'source .venv/bin/activate && exec python -u main.py'")
+    monkeypatch.setenv("EGB_CAMERA_INDEX", "2")
+
+    class _FakeProcess:
+        pid = 106
+
+        def poll(self):
+            return None
+
+    launches: list[dict[str, object]] = []
+
+    def _fake_popen(args, **kwargs):
+        launches.append({"args": args, **kwargs})
+        return _FakeProcess()
+
+    controller = AssistiveVisionProcessController(
+        project_path=project_dir,
+        timeout_policy=_policy("vision_system"),
+        popen_factory=_fake_popen,
+    )
+
+    result = controller.start(build_request(capability_id="vision_system", action="start", timeout_seconds=0.1))
+
+    assert result.status == "success"
+    assert launches[0]["env"]["EGB_VISION_CAMERA_INDEX"] == "2"
+    assert launches[0]["env"]["CAMERA_INDEX"] == "2"

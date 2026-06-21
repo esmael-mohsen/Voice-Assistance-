@@ -207,3 +207,36 @@ def test_ocr_process_controller_opens_visible_terminal_when_enabled(monkeypatch,
     assert launches[0]["args"][:3] == ["lxterminal", f"--working-directory={project_dir.resolve()}", "--command"]
     assert "source .venv/bin/activate && exec python -u main.py" in launches[0]["args"][3]
     assert launches[0]["cwd"] == str(project_dir.resolve())
+
+
+def test_ocr_process_controller_maps_shared_camera_index_to_assistant_index(monkeypatch, tmp_path: Path) -> None:
+    project_dir = tmp_path / "ocr-project"
+    project_dir.mkdir()
+    (project_dir / "main.py").write_text("print('ocr app')\n", encoding="utf-8")
+    monkeypatch.setenv("EGB_OCR_COMMAND", "bash -lc 'source .venv/bin/activate && exec python -u main.py'")
+    monkeypatch.setenv("EGB_CAMERA_INDEX", "2")
+    monkeypatch.delenv("ASSISTANT_CAMERA_SOURCE", raising=False)
+
+    class _FakeProcess:
+        pid = 105
+
+        def poll(self):
+            return None
+
+    launches: list[dict[str, object]] = []
+
+    def _fake_popen(args, **kwargs):
+        launches.append({"args": args, **kwargs})
+        return _FakeProcess()
+
+    controller = AssistiveOcrProcessController(
+        project_path=project_dir,
+        timeout_policy=_policy("ocr"),
+        popen_factory=_fake_popen,
+    )
+
+    result = controller.start(build_request(capability_id="ocr", action="start", timeout_seconds=0.1))
+
+    assert result.status == "success"
+    assert launches[0]["env"]["ASSISTANT_CAMERA_INDEX"] == "2"
+    assert "ASSISTANT_CAMERA_SOURCE" not in launches[0]["env"]

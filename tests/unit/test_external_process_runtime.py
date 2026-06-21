@@ -31,6 +31,37 @@ def test_external_process_env_maps_pi_display_overrides(monkeypatch) -> None:
     assert env["CUSTOM_FLAG"] == "1"
 
 
+def test_external_process_env_maps_shared_numeric_camera_index(monkeypatch) -> None:
+    monkeypatch.setenv("EGB_CAMERA_INDEX", "2")
+    monkeypatch.delenv("EGB_CAMERA_SOURCE", raising=False)
+    monkeypatch.delenv("ASSISTANT_CAMERA_SOURCE", raising=False)
+    monkeypatch.delenv("ASSISTANT_CAMERA_INDEX", raising=False)
+    monkeypatch.delenv("EGY_MONEY_CAMERA_SOURCE", raising=False)
+    monkeypatch.delenv("EGB_VISION_CAMERA_INDEX", raising=False)
+
+    env = build_external_process_env()
+
+    assert env["EGB_CAMERA_INDEX"] == "2"
+    assert env["EGB_VISION_CAMERA_INDEX"] == "2"
+    assert env["CAMERA_INDEX"] == "2"
+    assert env["ASSISTANT_CAMERA_INDEX"] == "2"
+    assert env["EGY_MONEY_CAMERA_SOURCE"] == "2"
+    assert "ASSISTANT_CAMERA_SOURCE" not in env
+
+
+def test_external_process_env_maps_shared_url_camera_source(monkeypatch) -> None:
+    monkeypatch.delenv("EGB_CAMERA_INDEX", raising=False)
+    monkeypatch.setenv("EGB_CAMERA_SOURCE", "http://127.0.0.1:8080/video")
+    monkeypatch.delenv("ASSISTANT_CAMERA_SOURCE", raising=False)
+    monkeypatch.delenv("EGY_MONEY_CAMERA_SOURCE", raising=False)
+
+    env = build_external_process_env()
+
+    assert env["EGB_CAMERA_SOURCE"] == "http://127.0.0.1:8080/video"
+    assert env["ASSISTANT_CAMERA_SOURCE"] == "http://127.0.0.1:8080/video"
+    assert env["EGY_MONEY_CAMERA_SOURCE"] == "http://127.0.0.1:8080/video"
+
+
 def test_launch_diagnostics_write_actionable_env_and_path_summary(tmp_path: Path) -> None:
     log_path = tmp_path / "external.log"
     project_dir = tmp_path / "project"
