@@ -23,7 +23,11 @@ from controllers.capability_contracts import (
     CapabilityTimeoutPolicy,
     build_result,
 )
-from controllers.external_process_runtime import build_external_process_env, write_launch_diagnostics
+from controllers.external_process_runtime import (
+    build_external_process_env,
+    write_launch_diagnostics,
+    write_python_import_probe,
+)
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -188,6 +192,12 @@ class AssistiveMoneyProcessController:
                 "python_path": python_path,
                 "stop_file_path": stop_file,
             },
+        )
+        write_python_import_probe(
+            log_handle,
+            label="money_voice",
+            python_path=python_path,
+            modules=("speech_recognition", "pyaudio", "edge_tts", "playsound", "vosk"),
         )
         process = self._popen_factory(
             argv,

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from controllers.external_process_runtime import (
     build_external_process_env,
+    write_python_import_probe,
     write_launch_diagnostics,
 )
 
@@ -58,3 +60,22 @@ def test_launch_diagnostics_write_actionable_env_and_path_summary(tmp_path: Path
     assert "exists=False" in content
     assert "ASSISTANT_MICROPHONE_INDEX=3" in content
     assert f"python_path={python_path}" in content
+
+
+def test_python_import_probe_records_missing_and_available_modules(tmp_path: Path) -> None:
+    log_path = tmp_path / "probe.log"
+
+    with log_path.open("a", encoding="utf-8") as handle:
+        write_python_import_probe(
+            handle,
+            label="money_voice",
+            python_path=Path(sys.executable),
+            modules=("sys", "definitely_missing_egb_module"),
+            timeout_s=5.0,
+        )
+
+    content = log_path.read_text(encoding="utf-8")
+
+    assert "[EGB_PREFLIGHT] label=money_voice" in content
+    assert "module=sys status=ok" in content
+    assert "module=definitely_missing_egb_module status=missing" in content

@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any, TextIO
 
 EXTERNAL_DISPLAY_ENV = "EGB_EXTERNAL_DISPLAY"
@@ -81,4 +83,49 @@ def write_launch_diagnostics(
     for key, value in (extra or {}).items():
         handle.write(f"[EGB_LAUNCH] {key}={value}\n")
     handle.write("[EGB_LAUNCH] process_output_begin\n")
+    handle.flush()
+
+
+def write_python_import_probe(
+    handle: TextIO,
+    *,
+    label: str,
+    python_path: str | Path,
+    modules: tuple[str, ...],
+    timeout_s: float = 6.0,
+) -> None:
+    module_list = tuple(str(module).strip() for module in modules if str(module).strip())
+    if not module_list:
+        return
+    probe = (
+        "import importlib.util, sys\n"
+        f"modules = {module_list!r}\n"
+        "for name in modules:\n"
+        "    spec = importlib.util.find_spec(name)\n"
+        "    print(f'module={name} status={\"ok\" if spec else \"missing\"}')\n"
+    )
+    handle.write(f"[EGB_PREFLIGHT] label={label} python_path={python_path}\n")
+    try:
+        completed = subprocess.run(
+            [str(python_path), "-c", probe],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_s,
+        )
+    except Exception as exc:  # noqa: BLE001
+        handle.write(f"[EGB_PREFLIGHT] probe_failed error={exc}\n")
+        handle.flush()
+        return
+
+    output = (completed.stdout or "").strip().splitlines()
+    for line in output:
+        handle.write(f"[EGB_PREFLIGHT] {line}\n")
+    stderr = (completed.stderr or "").strip()
+    if stderr:
+        handle.write(f"[EGB_PREFLIGHT] stderr={stderr[:800]}\n")
+    handle.write(f"[EGB_PREFLIGHT] returncode={completed.returncode}\n")
+    if not output and completed.returncode != 0:
+        handle.write(f"[EGB_PREFLIGHT] executable={sys.executable}\n")
     handle.flush()
