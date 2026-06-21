@@ -22,6 +22,7 @@ from controllers.capability_contracts import (
     build_result,
 )
 from controllers.external_process_runtime import build_external_process_env, write_launch_diagnostics
+from controllers.external_process_runtime import configured_command_argv
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ DEFAULT_OCR_PROJECT_PATH = Path(__file__).resolve().parents[2] / "blind_ocr_assi
 OCR_PROJECT_ENV = "EGB_OCR_PROJECT_PATH"
 OCR_PYTHON_ENV = "EGB_OCR_PYTHON"
 OCR_LOG_DIR_ENV = "EGB_OCR_LOG_DIR"
+OCR_COMMAND_ENV = "EGB_OCR_COMMAND"
 OCR_PROCESS_BACKEND_NAME = "blind_ocr_assistant_process"
 
 
@@ -90,7 +92,7 @@ class AssistiveOcrProcessController:
             return False, "ocr_project_missing"
         if not self._main_script_path.exists():
             return False, "ocr_main_missing"
-        if self._resolved_python() is None:
+        if self._resolved_python() is None and configured_command_argv(os.environ.get(OCR_COMMAND_ENV)) is None:
             return False, "ocr_python_missing"
         return True, None
 
@@ -151,14 +153,15 @@ class AssistiveOcrProcessController:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / f"blind_ocr_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.log"
         python_path = self._resolved_python()
-        if python_path is None:
+        configured_argv = configured_command_argv(os.environ.get(OCR_COMMAND_ENV))
+        if python_path is None and configured_argv is None:
             raise RuntimeError("ocr_python_missing")
 
         env = build_external_process_env()
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         log_handle = log_path.open("a", encoding="utf-8", errors="replace")
-        argv = [str(python_path), "-u", str(self._main_script_path)]
+        argv = configured_argv or [str(python_path), "-u", str(self._main_script_path)]
         write_launch_diagnostics(
             log_handle,
             label="ocr",

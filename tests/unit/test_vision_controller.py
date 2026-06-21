@@ -474,3 +474,34 @@ def test_vision_process_controller_reports_already_running(tmp_path: Path) -> No
     assert first.status == "success"
     assert second.status == "success"
     assert launches == 1
+
+
+def test_vision_process_controller_uses_configured_terminal_command(monkeypatch, tmp_path: Path) -> None:
+    project_dir = tmp_path / "vision-project"
+    project_dir.mkdir()
+    (project_dir / "main.py").write_text("print('vision app')\n", encoding="utf-8")
+    monkeypatch.setenv("EGB_VISION_COMMAND", "bash -lc 'source .venv/bin/activate && exec python -u main.py'")
+
+    class _FakeProcess:
+        pid = 97
+
+        def poll(self):
+            return None
+
+    launches: list[dict[str, object]] = []
+
+    def _fake_popen(args, **kwargs):
+        launches.append({"args": args, **kwargs})
+        return _FakeProcess()
+
+    controller = AssistiveVisionProcessController(
+        project_path=project_dir,
+        timeout_policy=_policy("vision_system"),
+        popen_factory=_fake_popen,
+    )
+
+    result = controller.start(build_request(capability_id="vision_system", action="start", timeout_seconds=0.1))
+
+    assert result.status == "success"
+    assert launches[0]["args"] == ["bash", "-lc", "source .venv/bin/activate && exec python -u main.py"]
+    assert launches[0]["cwd"] == str(project_dir.resolve())

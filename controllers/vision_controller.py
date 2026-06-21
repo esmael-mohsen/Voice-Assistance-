@@ -27,7 +27,11 @@ from controllers.capability_contracts import (
     build_result,
     invoke_with_timeout,
 )
-from controllers.external_process_runtime import build_external_process_env, write_launch_diagnostics
+from controllers.external_process_runtime import (
+    build_external_process_env,
+    configured_command_argv,
+    write_launch_diagnostics,
+)
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -46,6 +50,7 @@ VISION_BACKEND_NAME = "assistive_vision_system"
 VISION_PROCESS_BACKEND_NAME = "assistive_vision_process"
 VISION_STOP_FILE_ENV = "AVS_STOP_FILE"
 VISION_LOG_DIR_ENV = "EGB_VISION_LOG_DIR"
+VISION_COMMAND_ENV = "EGB_VISION_COMMAND"
 
 _EMOTION_TRANSLATIONS = {
     "angry": "غاضب",
@@ -918,7 +923,7 @@ class AssistiveVisionProcessController:
             return False, "vision_project_missing"
         if not self._main_script_path.exists():
             return False, "vision_main_missing"
-        if self._resolved_python() is None:
+        if self._resolved_python() is None and configured_command_argv(os.environ.get(VISION_COMMAND_ENV)) is None:
             return False, "vision_python_missing"
         return True, None
 
@@ -991,12 +996,13 @@ class AssistiveVisionProcessController:
         env = build_external_process_env(extra={VISION_STOP_FILE_ENV: str(stop_file)})
         env.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
         python_path = self._resolved_python()
-        if python_path is None:
+        configured_argv = configured_command_argv(os.environ.get(VISION_COMMAND_ENV))
+        if python_path is None and configured_argv is None:
             raise RuntimeError("vision_python_missing")
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         log_handle = log_path.open("a", encoding="utf-8", errors="replace")
-        argv = [str(python_path), "-u", str(self._main_script_path)]
+        argv = configured_argv or [str(python_path), "-u", str(self._main_script_path)]
         write_launch_diagnostics(
             log_handle,
             label="vision",

@@ -25,6 +25,7 @@ from controllers.capability_contracts import (
 )
 from controllers.external_process_runtime import (
     build_external_process_env,
+    configured_command_argv,
     write_launch_diagnostics,
     write_python_import_probe,
 )
@@ -37,6 +38,7 @@ MONEY_PROJECT_ENV = "EGB_MONEY_PROJECT_PATH"
 MONEY_PYTHON_ENV = "EGB_MONEY_PYTHON"
 MONEY_STOP_FILE_ENV = "EGY_MONEY_STOP_FILE"
 MONEY_LOG_DIR_ENV = "EGB_MONEY_LOG_DIR"
+MONEY_COMMAND_ENV = "EGB_MONEY_COMMAND"
 MONEY_PROCESS_BACKEND_NAME = "egy_money_detection_process"
 
 
@@ -100,7 +102,7 @@ class AssistiveMoneyProcessController:
             return False, "money_project_missing"
         if not self._main_script_path.exists():
             return False, "money_main_missing"
-        if self._resolved_python() is None:
+        if self._resolved_python() is None and configured_command_argv(os.environ.get(MONEY_COMMAND_ENV)) is None:
             return False, "money_python_missing"
         return True, None
 
@@ -172,14 +174,15 @@ class AssistiveMoneyProcessController:
         log_path = log_dir / f"egy_money_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.log"
         stop_file = self._new_stop_file()
         python_path = self._resolved_python()
-        if python_path is None:
+        configured_argv = configured_command_argv(os.environ.get(MONEY_COMMAND_ENV))
+        if python_path is None and configured_argv is None:
             raise RuntimeError("money_python_missing")
 
         env = build_external_process_env(extra={MONEY_STOP_FILE_ENV: str(stop_file)})
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         log_handle = log_path.open("a", encoding="utf-8", errors="replace")
-        argv = [str(python_path), "-u", str(self._main_script_path)]
+        argv = configured_argv or [str(python_path), "-u", str(self._main_script_path)]
         write_launch_diagnostics(
             log_handle,
             label="money",
@@ -196,7 +199,7 @@ class AssistiveMoneyProcessController:
         write_python_import_probe(
             log_handle,
             label="money_voice",
-            python_path=python_path,
+            python_path=python_path or sys.executable,
             modules=("speech_recognition", "pyaudio", "edge_tts", "playsound", "vosk"),
         )
         process = self._popen_factory(

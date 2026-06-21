@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 from typing import Any, TextIO
@@ -24,6 +25,10 @@ _DIAGNOSTIC_ENV_KEYS = (
     "ASSISTANT_MICROPHONE_INDEX",
     "ASSISTANT_SHOW_WINDOW",
     "ASSISTANT_VOICE_ENABLED",
+    "EGB_VISION_COMMAND",
+    "EGB_OCR_COMMAND",
+    "EGB_MONEY_COMMAND",
+    "EGB_WALK_COMMAND",
 )
 
 
@@ -49,6 +54,13 @@ def build_external_process_env(*, extra: dict[str, str] | None = None) -> dict[s
         for key, value in extra.items():
             env[str(key)] = str(value)
     return env
+
+
+def configured_command_argv(command: str | None) -> list[str] | None:
+    cleaned = str(command or "").strip()
+    if not cleaned:
+        return None
+    return shlex.split(cleaned)
 
 
 def _path_exists_label(value: str) -> str:
