@@ -55,9 +55,13 @@ def test_detect_wake_accepts_common_stt_distortions_for_egb() -> None:
     agency_decision = detect_wake("hi agency", profile=WakeDetectionProfile.BALANCED)
     yi_decision = detect_wake("hi yi the p", profile=WakeDetectionProfile.BALANCED)
     high_decision = detect_wake("high e g b", profile=WakeDetectionProfile.BALANCED)
+    ecb_decision = detect_wake("hi ecb", profile=WakeDetectionProfile.BALANCED)
+    hello_ecb_decision = detect_wake("hello ecb", profile=WakeDetectionProfile.BALANCED)
     assert agency_decision.accepted is True
     assert yi_decision.accepted is True
     assert high_decision.accepted is True
+    assert ecb_decision.accepted is True
+    assert hello_ecb_decision.accepted is True
 
 
 def test_development_profile_rejects_short_greeting_non_wake_phrase() -> None:

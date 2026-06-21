@@ -204,6 +204,7 @@ _WAKE_SINGLE_TOKEN_REWRITES = {
     "agincy": "egb",
     "ajency": "egb",
     "egency": "egb",
+    "ecb": "egb",
 }
 
 _WAKE_SEQUENCE_REWRITES: dict[tuple[str, ...], tuple[str, ...]] = {
