@@ -75,3 +75,38 @@ def test_walk_controller_launches_ros2_blind_assist_entrypoint(tmp_path: Path) -
 
     assert stop.status == "success"
     assert stop.payload["running"] is False
+
+
+def test_walk_controller_opens_visible_terminal_when_enabled(monkeypatch, tmp_path: Path) -> None:
+    project_dir = tmp_path / "Walk_Assistant"
+    project_dir.mkdir()
+    monkeypatch.setenv("EGB_WALK_COMMAND", "bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 launch blind_assist blind_assist.launch.py'")
+    monkeypatch.setenv("EGB_EXTERNAL_TERMINAL_ENABLED", "1")
+    monkeypatch.setenv("EGB_EXTERNAL_TERMINAL_APP", "lxterminal")
+
+    class _FakeProcess:
+        pid = 103
+
+        def poll(self):
+            return None
+
+    launches: list[dict[str, object]] = []
+
+    def _fake_popen(args, **kwargs):
+        launches.append({"args": args, **kwargs})
+        return _FakeProcess()
+
+    controller = WalkAssistantProcessController(
+        project_path=project_dir,
+        timeout_policy=_policy(),
+        popen_factory=_fake_popen,
+    )
+
+    result = controller.start(
+        build_request(capability_id="obstacle_detection", action="start", timeout_seconds=0.1)
+    )
+
+    assert result.status == "success"
+    assert launches[0]["args"][:3] == ["lxterminal", f"--working-directory={project_dir.resolve()}", "--command"]
+    assert "ros2 launch blind_assist blind_assist.launch.py" in launches[0]["args"][3]
+    assert launches[0]["cwd"] == str(project_dir.resolve())

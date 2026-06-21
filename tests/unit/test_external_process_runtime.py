@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 
 from controllers.external_process_runtime import (
     build_external_process_env,
+    wrap_argv_for_visible_terminal,
     write_python_import_probe,
     write_launch_diagnostics,
 )
@@ -79,3 +81,26 @@ def test_python_import_probe_records_missing_and_available_modules(tmp_path: Pat
     assert "[EGB_PREFLIGHT] label=money_voice" in content
     assert "module=sys status=ok" in content
     assert "module=definitely_missing_egb_module status=missing" in content
+
+
+def test_visible_terminal_wrapper_uses_configured_lxterminal(monkeypatch, tmp_path: Path) -> None:
+    project_dir = tmp_path / "money-project"
+    log_path = tmp_path / "money.log"
+    monkeypatch.setenv("EGB_EXTERNAL_TERMINAL_ENABLED", "1")
+    monkeypatch.setenv("EGB_EXTERNAL_TERMINAL_APP", "lxterminal")
+    monkeypatch.setenv("EGB_EXTERNAL_TERMINAL_HOLD_ON_EXIT", "1")
+
+    wrapped = wrap_argv_for_visible_terminal(
+        ["bash", "-lc", "source .venv/bin/activate && exec python -u main.py"],
+        cwd=project_dir,
+        log_path=log_path,
+        env=dict(os.environ),
+    )
+
+    assert wrapped[:2] == ["lxterminal", f"--working-directory={project_dir}"]
+    assert wrapped[2] == "--command"
+    assert wrapped[3].startswith("bash -lc ")
+    assert "source .venv/bin/activate && exec python -u main.py" in wrapped[3]
+    assert "tee -a" in wrapped[3]
+    assert str(log_path) in wrapped[3]
+    assert "Press Enter to close this terminal" in wrapped[3]

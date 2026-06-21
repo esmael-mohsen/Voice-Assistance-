@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 import platform
-import shlex
 import signal
 import subprocess
 import sys
@@ -22,7 +21,12 @@ from controllers.capability_contracts import (
     CapabilityTimeoutPolicy,
     build_result,
 )
-from controllers.external_process_runtime import build_external_process_env, write_launch_diagnostics
+from controllers.external_process_runtime import (
+    build_external_process_env,
+    configured_command_argv,
+    wrap_argv_for_visible_terminal,
+    write_launch_diagnostics,
+)
 from settings.settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
@@ -103,7 +107,7 @@ class WalkAssistantProcessController:
     def _launch_argv(self) -> list[str]:
         configured_command = os.environ.get(WALK_COMMAND_ENV)
         if configured_command:
-            return shlex.split(configured_command)
+            return configured_command_argv(configured_command) or []
         entrypoint = self._resolved_entrypoint()
         python_path = self._resolved_python()
         if entrypoint is None:
@@ -181,8 +185,14 @@ class WalkAssistantProcessController:
         log_dir = self._walk_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / f"walk_assistant_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.log"
-        argv = self._launch_argv()
+        original_argv = self._launch_argv()
         env = build_external_process_env()
+        argv = wrap_argv_for_visible_terminal(
+            original_argv,
+            cwd=self._project_path,
+            log_path=log_path,
+            env=env,
+        )
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         log_handle = log_path.open("a", encoding="utf-8", errors="replace")
@@ -197,6 +207,7 @@ class WalkAssistantProcessController:
                 "entrypoint_path": self._resolved_entrypoint(),
                 "python_path": self._resolved_python(),
             },
+            extra={"original_argv": original_argv},
         )
         process = self._popen_factory(
             argv,

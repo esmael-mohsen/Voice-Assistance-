@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 from typing import Any, TextIO
@@ -13,6 +14,17 @@ from typing import Any, TextIO
 EXTERNAL_DISPLAY_ENV = "EGB_EXTERNAL_DISPLAY"
 EXTERNAL_XAUTHORITY_ENV = "EGB_EXTERNAL_XAUTHORITY"
 EXTERNAL_WAYLAND_ENV = "EGB_EXTERNAL_WAYLAND_DISPLAY"
+EXTERNAL_TERMINAL_ENABLED_ENV = "EGB_EXTERNAL_TERMINAL_ENABLED"
+EXTERNAL_TERMINAL_APP_ENV = "EGB_EXTERNAL_TERMINAL_APP"
+EXTERNAL_TERMINAL_HOLD_ENV = "EGB_EXTERNAL_TERMINAL_HOLD_ON_EXIT"
+
+_AUTO_TERMINAL_CANDIDATES = (
+    "lxterminal",
+    "x-terminal-emulator",
+    "gnome-terminal",
+    "xfce4-terminal",
+    "xterm",
+)
 
 _DIAGNOSTIC_ENV_KEYS = (
     "EGB_RUNTIME_TARGET",
@@ -29,6 +41,9 @@ _DIAGNOSTIC_ENV_KEYS = (
     "EGB_OCR_COMMAND",
     "EGB_MONEY_COMMAND",
     "EGB_WALK_COMMAND",
+    "EGB_EXTERNAL_TERMINAL_ENABLED",
+    "EGB_EXTERNAL_TERMINAL_APP",
+    "EGB_EXTERNAL_TERMINAL_HOLD_ON_EXIT",
 )
 
 
@@ -61,6 +76,76 @@ def configured_command_argv(command: str | None) -> list[str] | None:
     if not cleaned:
         return None
     return shlex.split(cleaned)
+
+
+def _env_truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _configured_terminal_app_argv(env: dict[str, str]) -> list[str] | None:
+    configured = str(env.get(EXTERNAL_TERMINAL_APP_ENV) or "auto").strip()
+    if not configured or configured.lower() == "auto":
+        for candidate in _AUTO_TERMINAL_CANDIDATES:
+            resolved = shutil.which(candidate)
+            if resolved:
+                return [resolved]
+        return None
+    return shlex.split(configured)
+
+
+def _terminal_shell_script(
+    argv: list[str],
+    *,
+    log_path: str | Path,
+    hold_on_exit: bool,
+) -> str:
+    command = shlex.join(argv)
+    quoted_log_path = shlex.quote(str(log_path))
+    script = (
+        "set -o pipefail; "
+        'echo "[EGB_TERMINAL] cwd=$(pwd)" | tee -a '
+        f"{quoted_log_path}; "
+        f"( {command} ) 2>&1 | tee -a {quoted_log_path}; "
+        "status=${PIPESTATUS[0]}; "
+        'echo "[EGB_TERMINAL] exit_status=$status" | tee -a '
+        f"{quoted_log_path}; "
+    )
+    if hold_on_exit:
+        script += "echo; echo 'Press Enter to close this terminal...'; read -r _; "
+    return script + "exit $status"
+
+
+def wrap_argv_for_visible_terminal(
+    argv: list[str],
+    *,
+    cwd: str | Path,
+    log_path: str | Path,
+    env: dict[str, str],
+) -> list[str]:
+    """Wrap a launch command in a visible terminal when Pi diagnostics ask for it."""
+
+    if not _env_truthy(env.get(EXTERNAL_TERMINAL_ENABLED_ENV)):
+        return argv
+
+    terminal_argv = _configured_terminal_app_argv(env)
+    if not terminal_argv:
+        return argv
+
+    terminal_name = Path(terminal_argv[0]).name.lower()
+    script = _terminal_shell_script(
+        argv,
+        log_path=log_path,
+        hold_on_exit=_env_truthy(env.get(EXTERNAL_TERMINAL_HOLD_ENV)),
+    )
+    cwd_text = str(cwd)
+
+    if terminal_name in {"gnome-terminal", "kgx"}:
+        return [*terminal_argv, "--working-directory", cwd_text, "--", "bash", "-lc", script]
+    if terminal_name == "xfce4-terminal":
+        return [*terminal_argv, f"--working-directory={cwd_text}", "--command", f"bash -lc {shlex.quote(script)}"]
+    if terminal_name == "lxterminal":
+        return [*terminal_argv, f"--working-directory={cwd_text}", "--command", f"bash -lc {shlex.quote(script)}"]
+    return [*terminal_argv, "-e", "bash", "-lc", script]
 
 
 def _path_exists_label(value: str) -> str:

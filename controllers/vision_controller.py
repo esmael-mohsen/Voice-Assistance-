@@ -30,6 +30,7 @@ from controllers.capability_contracts import (
 from controllers.external_process_runtime import (
     build_external_process_env,
     configured_command_argv,
+    wrap_argv_for_visible_terminal,
     write_launch_diagnostics,
 )
 from settings.settings_manager import settings_manager
@@ -1002,7 +1003,13 @@ class AssistiveVisionProcessController:
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         log_handle = log_path.open("a", encoding="utf-8", errors="replace")
-        argv = configured_argv or [str(python_path), "-u", str(self._main_script_path)]
+        original_argv = configured_argv or [str(python_path), "-u", str(self._main_script_path)]
+        argv = wrap_argv_for_visible_terminal(
+            original_argv,
+            cwd=self._project_path,
+            log_path=log_path,
+            env=env,
+        )
         write_launch_diagnostics(
             log_handle,
             label="vision",
@@ -1015,6 +1022,7 @@ class AssistiveVisionProcessController:
                 "python_path": python_path,
                 "stop_file_path": stop_file,
             },
+            extra={"original_argv": original_argv},
         )
         process = self._popen_factory(
             argv,
