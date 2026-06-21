@@ -1,6 +1,6 @@
 SpeechRecognition==3.16.0
 rapidfuzz==3.14.5
-edge-tts==6.1.13
+edge-tts==7.2.8
 azure-cognitiveservices-speech==1.49.1
 playsound==1.2.2
 customtkinter==5.2.2
