@@ -306,6 +306,16 @@ def test_tts_engine_uses_espeak_ng_local_backend_on_linux(monkeypatch) -> None:
     assert launches == [["/usr/bin/espeak-ng", "-s", "175", "-v", "en-us", "Assistant ready."]]
 
 
+def test_tts_engine_can_disable_espeak_local_backend_on_linux(monkeypatch) -> None:
+    monkeypatch.setenv("EGB_TTS_LOCAL_BACKEND", "disabled")
+    monkeypatch.setattr(tts_engine_module.os, "name", "posix")
+    engine = TTSEngine()
+
+    result = engine._speak_local_engine("Assistant ready.")
+
+    assert result is None
+
+
 def test_tts_engine_prefers_azure_when_enabled(monkeypatch) -> None:
     engine = TTSEngine()
     engine._azure_tts_enabled = True

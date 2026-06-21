@@ -130,6 +130,38 @@ def test_cloud_disabled_keeps_local_candidate_ordering_for_commands(
     assert all(item[2] == "local_vosk" for item in candidates[:3])
 
 
+def test_google_engine_uses_speechrecognition_google_without_cloud_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EGB_STT_ENGINE", "google")
+    monkeypatch.setenv("EGB_STT_CLOUD_PRIMARY_ENABLED", "0")
+    monkeypatch.setenv("EGB_STT_STRICT_VOSK_FALLBACK_ENABLED", "0")
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    listener = VoiceListener(default_language="en-US")
+    monkeypatch.setattr(
+        listener,
+        "_recognize_cloud_candidate",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("official cloud path should be skipped")),
+    )
+    monkeypatch.setattr(
+        listener,
+        "_recognize_google_candidates",
+        lambda *_args, **_kwargs: [("read text", 0.91)],
+    )
+    candidates = listener._recognize_audio_candidates(
+        _Audio(),
+        language_code="en-US",
+        for_command=True,
+        usage_mode="command",
+        recognition_path="local_first",
+        closed_vocabulary_id=None,
+        closed_vocabulary_choices=None,
+    )
+    assert candidates
+    assert candidates[0][0] == "read text"
+    assert candidates[0][2] == "cloud_primary"
+
+
 def test_cloud_disabled_keeps_local_candidate_ordering_for_standby_wake(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
